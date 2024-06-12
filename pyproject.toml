@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "podalize"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+matplotlib = "3.6.1"
+pyannote-audio = "3.2.0"
+pyannote-core = "5.0.0"
+altair = "<5"
+pydub = "0.25.1"
+pylatex = "1.4.1"
+python-magic = "0.4.27"
+pytube = "12.1.0"
+streamlit = "1.14.0"
+torchaudio = "^2.3.1"
+openai-whisper = "20231117"
+wordcloud = "1.8.2.2"
+yt-dlp = "^2024.5.27"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
