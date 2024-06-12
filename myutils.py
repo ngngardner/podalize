@@ -1,16 +1,18 @@
-import whisper
-import time
 import datetime
-from pyannote.audio import Pipeline
 import json
 import os
 import pickle
-import matplotlib.pyplot as plt
-from pytube import YouTube
+import time
 from pathlib import Path
-from pydub import AudioSegment
-import streamlit as st
+
+import matplotlib.pyplot as plt
 import numpy as np
+import streamlit as st
+import whisper
+from pyannote.audio import Pipeline
+from pydub import AudioSegment
+from pytube import YouTube
+
 verbose = False
 
 def yt_downloader(url, destination, bitrate="48k", verbose=True):
@@ -37,8 +39,8 @@ def youtube_downloader(url, destination):
     try:
         rnd_num = np.random.randint(1e6)
         path2mp3 = str(Path(f"./data/audio_{rnd_num}.mp3"))
-        os.system(f'yt-dlp -x --audio-format mp3 -o {path2mp3} {url}')
-    except Exception as e: 
+        os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")
+    except Exception as e:
         print(e)
     return path2mp3
 
@@ -46,20 +48,20 @@ def merge_tran_diar(result, segements_dict, speakers_dict):
     output = ""
     prev_sp = ""
     transcribed = set()
-    for idx, seg in enumerate(result['segments']):
+    for idx, seg in enumerate(result["segments"]):
         if (idx in transcribed):
             continue
         seg = {k: v for k, v in seg.items() if k in ("start", "end", "text")}
-        start = str(datetime.timedelta(seconds=round(seg['start'], 0)))
-        if start.startswith('0'):
+        start = str(datetime.timedelta(seconds=round(seg["start"], 0)))
+        if start.startswith("0"):
             start = start[2:]
-        end = str(datetime.timedelta(seconds=round(seg['end'], 0)))
-        if end.startswith('0'):
+        end = str(datetime.timedelta(seconds=round(seg["end"], 0)))
+        if end.startswith("0"):
             end = end[2:]
 
         overlaps = {}
         for k, sp in segements_dict.items():
-            if seg["start"] > k[1] or seg['end'] < k[0]:
+            if seg["start"] > k[1] or seg["end"] < k[0]:
                 continue
 
             ov = getOverlap(k, (seg["start"], seg["end"]))
@@ -68,10 +70,10 @@ def merge_tran_diar(result, segements_dict, speakers_dict):
                 transcribed.add(idx)
         if overlaps:
             sp = max(overlaps, key=overlaps.get)
-            result['segments'][idx]['speaker'] = sp
+            result["segments"][idx]["speaker"] = sp
             ov = max(overlaps.values())
             if sp != prev_sp:
-                out = "\n\n\n" + f"{sp}           {start}\n" + seg['text']
+                out = "\n\n\n" + f"{sp}           {start}\n" + seg["text"]
                 # print(out)
                 output += out
                 # print("-"*50)
@@ -80,11 +82,11 @@ def merge_tran_diar(result, segements_dict, speakers_dict):
                 prev_sp = sp
             else:
                 prev_sp = sp
-                out = seg['text']
+                out = seg["text"]
                 # print(out)
                 output += out
                 # print(f"[{start}, {end}]", seg['text'])
-    result['speakers'] = list(set(segements_dict.values()))
+    result["speakers"] = list(set(segements_dict.values()))
 
     for sp in speakers_dict:
         output = output.replace(sp, speakers_dict[sp])
@@ -95,11 +97,11 @@ def get_segments(diarization, speaker_dict):
     for turn, _, speaker in diarization.itertracks(yield_label=True):
         start_end = f"{turn.start},{turn.end}"
         segments_dict[start_end] = speaker_dict.get(speaker, speaker)
-    return segments_dict 
+    return segments_dict
 
 def get_larget_duration(diarization, speaker, max_length=5.0):
-    maxsofar = -float('Inf')
-    s, e, d = 0, 0, 0 
+    maxsofar = -float("Inf")
+    s, e, d = 0, 0, 0
     for turn, _, sp in diarization.itertracks(yield_label=True):
         d = turn.end - turn.start
         if  d > maxsofar and sp==speaker:
@@ -117,10 +119,10 @@ def get_transcript(model_size, path2audio):
     _,ext = os.path.splitext(path2audio)
     p2f = path2audio.replace(ext, f"_{model_size}.json")
     if os.path.exists(p2f):
-        with open(p2f, 'r') as f:
+        with open(p2f) as f:
             result = json.load(f)
         return result
-    
+
     if verbose:
         print("loading model ...")
     model = whisper.load_model(model_size)
@@ -132,11 +134,11 @@ def get_transcript(model_size, path2audio):
     el = time.time() - st
     if verbose:
         print(f"elapsed time: {el:.2f} sec")
-    
+
     # store transcript
     with open(p2f, "w") as f:
-        json.dump(result,f)    
-    
+        json.dump(result,f)
+
     return result
 
 
@@ -144,12 +146,12 @@ def merge_intervals(intervals_dict):
     intervals = list(intervals_dict.keys())
     speakers = list(intervals_dict.values())
     assert len(intervals) == len(speakers)
-    
+
     sorted_intervals = intervals #sorted(intervals, key=lambda x: x[0])
     sorted_speakers = [[sp] for sp in speakers]
-    
+
     interval_index = 0
-    for  inv, sp in zip(sorted_intervals, sorted_speakers):
+    for  inv, sp in zip(sorted_intervals, sorted_speakers, strict=False):
 
         if inv[0] > sorted_intervals[interval_index][1]:
             interval_index += 1
@@ -157,14 +159,14 @@ def merge_intervals(intervals_dict):
             sorted_speakers[interval_index] = sp
         else:
             sorted_intervals[interval_index] = [sorted_intervals[interval_index][0], inv[1]]
-            sorted_speakers[interval_index].extend(sp) 
-            
+            sorted_speakers[interval_index].extend(sp)
+
     intervals = sorted_intervals[:interval_index+1]
     speakers = sorted_speakers[:interval_index+1]
     assert len(intervals) == len(speakers)
     speakers = [list(set(sp)) for sp in speakers]
-    
-    intervals_dict = {(inv[0],inv[1]):sp for inv,sp in zip(intervals, speakers)}
+
+    intervals_dict = {(inv[0],inv[1]):sp for inv,sp in zip(intervals, speakers, strict=False)}
     return intervals_dict
 
 def getOverlap(a, b):
@@ -177,12 +179,12 @@ def mp3wav(p2mp3):
     p2wav = p2mp3.replace(".mp3", ".wav")
     if os.path.exists(p2wav):
         return p2wav
-        
+
     from pydub import AudioSegment
     if verbose:
         print(f"loading {p2mp3}")
     sound = AudioSegment.from_mp3(p2mp3)
-    
+
     if verbose:
         print(f"exporting to {p2wav}")
     sound.export(p2wav, format="wav")
@@ -197,7 +199,7 @@ def get_diarization(p2audio, use_auth_token):
     if os.path.exists(p2p):
         if verbose:
             print(f"loading {p2p}")
-        with open(p2p, 'rb') as handle:
+        with open(p2p, "rb") as handle:
             diarization = pickle.load(handle)
 
         speaker_dict = {}
@@ -212,13 +214,13 @@ def get_diarization(p2audio, use_auth_token):
         if verbose:
             print("loading model ...")
         pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=use_auth_token)
-        
+
         if verbose:
             print("diarization ...")
-        diarization = pipeline(p2audio)    
-        
+        diarization = pipeline(p2audio)
+
         # save diarization
-        with open(p2p, 'wb') as handle:
+        with open(p2p, "wb") as handle:
             pickle.dump(diarization, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -236,8 +238,8 @@ def get_spoken_time(result, speakers):
     spoken_time = {}
     spoken_time_secs = {}
     for sp in speakers:
-        st = sum([seg['end']-seg['start'] for seg in result['segments'] if seg.get('speaker', None)==sp])
-        spoken_time_secs[sp] = st    
+        st = sum([seg["end"]-seg["start"] for seg in result["segments"] if seg.get("speaker", None)==sp])
+        spoken_time_secs[sp] = st
         st = str(datetime.timedelta(seconds=round(st,0)))
         spoken_time[sp] = st
     return spoken_time, spoken_time_secs
@@ -245,22 +247,22 @@ def get_spoken_time(result, speakers):
 
 def get_world_cloud(result, speakers_dict, path2figs="./data/logs"):
     from wordcloud import WordCloud
-    speakers = result['speakers']
+    speakers = result["speakers"]
     figs = []
     for sp in speakers:
-        words = ''.join([seg['text'] for seg in result['segments'] if seg.get('speaker')==sp])
-        if words == '':
+        words = "".join([seg["text"] for seg in result["segments"] if seg.get("speaker")==sp])
+        if words == "":
             continue
-        wordcloud = WordCloud(max_font_size=40, background_color='white').generate(words)
+        wordcloud = WordCloud(max_font_size=40, background_color="white").generate(words)
         fig = plt.figure()
         plt.imshow(wordcloud, interpolation="bilinear")
         plt.title(speakers_dict[sp])
         plt.axis("off")
         st.pyplot(fig)
-        
+
         p2f = f"{path2figs}/{speakers_dict[sp]}.png"
         figs.append(p2f)
-        plt.savefig(p2f)    
+        plt.savefig(p2f)
     return figs
 
 def get_audio_format(p2a, verbose=False):

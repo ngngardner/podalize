@@ -1,6 +1,5 @@
-from pathlib import Path
 import os
-
+from pathlib import Path
 
 path2audios = str(Path("./data"))
 path2logs = str(Path("./data/logs"))
@@ -16,4 +15,4 @@ verbose = False
 # set use_auth_token using the token here or store it in a file named api.token to be loaded
 with open("api.token") as f:
     use_auth_token = f.read()
-use_auth_token = use_auth_token.rstrip('\n')
+use_auth_token = use_auth_token.rstrip("\n")
