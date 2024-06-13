@@ -26,7 +26,7 @@ def get_file_audio(uploaded_file: UploadedFile) -> str:
     if not Path(p2audio).exists():
         with Path(p2audio).open("wb") as f:
             f.write(uploaded_file.getvalue())
-    return p2audio
+    return str(p2audio)
 
 
 def get_youtube_audio(youtube_url: str) -> str:
@@ -34,7 +34,7 @@ def get_youtube_audio(youtube_url: str) -> str:
     if "youtube.com" in youtube_url:
         p2audio = utils.youtube_downloader(youtube_url, configs.path2audios)
     else:
-        path2out = Path(configs.path2audios / "audio.unknown")
+        path2out = str(Path(configs.path2audios / "audio.unknown"))
         youtube_dl_path = shutil.which("youtube-dl")
         subprocess.run(
             [youtube_dl_path, youtube_url, f"-o{path2out}"],  # noqa: S603
@@ -42,11 +42,12 @@ def get_youtube_audio(youtube_url: str) -> str:
         )
         p2audio = utils.audio2wav(path2out)
         Path(path2out).unlink()
-    return p2audio
+    return str(p2audio)
 
 
 def process_audio(p2audio: str) -> (Annotation, dict, torch.Tensor, int):
     """Process the audio file and create diarization and labels."""
+    p2audio = str(p2audio)
     diarization = utils.get_diarization(p2audio, configs.use_auth_token)
     p2audio = utils.audio2wav(p2audio)
     labels = diarization.labels()

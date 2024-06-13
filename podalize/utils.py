@@ -172,6 +172,7 @@ def audio2wav(p2audio, verbose=False):
 
 
 def get_diarization(p2audio, use_auth_token):
+    p2audio = str(p2audio)
     _, ext = os.path.splitext(p2audio)
     p2s = p2audio.replace(ext, "_diar.json")
     p2p = p2audio.replace(ext, "_diar.pkl")
