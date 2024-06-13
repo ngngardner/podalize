@@ -10,7 +10,7 @@ import torch
 import torchaudio
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from podalize import configs, myutils
+from podalize import configs, utils
 from podalize.DocumentGenerator import DocumentGenerator
 from podalize.logger import get_logger
 
@@ -27,22 +27,22 @@ def get_file_audio(uploaded_file: UploadedFile):
 
 def get_youtube_audio(youtube_url):
     if "youtube.com" in youtube_url:
-        p2audio = myutils.youtube_downloader(youtube_url, configs.path2audios)
+        p2audio = utils.youtube_downloader(youtube_url, configs.path2audios)
     else:
         path2out = os.path.join(configs.path2audios, "audio.unknown")
         subprocess.run(
             ["youtube-dl", f"{youtube_url}", f"-o{path2out}"],
             check=False,
         )
-        p2audio = myutils.audio2wav(path2out)
+        p2audio = utils.audio2wav(path2out)
         os.remove(path2out)
     return p2audio
 
 
 def process_audio(p2audio):
     # diarization
-    diarization = myutils.get_diarization(p2audio, configs.use_auth_token)
-    p2audio = myutils.mp3wav(p2audio)
+    diarization = utils.get_diarization(p2audio, configs.use_auth_token)
+    p2audio = utils.audio2wav(p2audio)
     labels = diarization.labels()
     logger.debug(f"speakers: {labels}")
     y, sr = torchaudio.load(p2audio)
@@ -54,7 +54,7 @@ def handle_speakers(diarization, labels, y, sr):
     speakers_dict = {}
     for ii, sp in enumerate(labels):
         speakers_dict[sp] = st.text_input(f"Speaker_{ii}", sp)
-        s, e, _ = myutils.get_larget_duration(diarization, sp)
+        s, e, _ = utils.get_larget_duration(diarization, sp)
         s1 = int(s * sr)
         e1 = int(e * sr)
         path2sp = f"{configs.path2audios}/{sp}.wav"
@@ -148,10 +148,10 @@ def app():
             speakers_dict = handle_speakers(diarization, labels, y, sr)
         model_sizes = ["tiny", "small", "base", "medium", "large"]
         model_size = st.selectbox("Select Model Size", model_sizes, index=3)
-        result = myutils.get_transcript(model_size=model_size, path2audio=p2audio)
+        result = utils.get_transcript(model_size=model_size, path2audio=p2audio)
 
         segements_dict = handle_segments(p2audio)
-        transcript = myutils.merge_tran_diar(result, segements_dict, speakers_dict)
+        transcript = utils.merge_tran_diar(result, segements_dict, speakers_dict)
         st.subheader("Transcript")
         st.text_area(
             label="transcript",
@@ -161,13 +161,13 @@ def app():
         )
 
         speakers = list(speakers_dict.keys())
-        spoken_time, spoken_time_secs = myutils.get_spoken_time(result, speakers)
+        spoken_time, spoken_time_secs = utils.get_spoken_time(result, speakers)
 
         generate_figs(speakers_dict, spoken_time_secs)
 
         pod_name = st.text_input("Enter Podcast Name", value=os.path.basename(p2audio))
         if pod_name:
-            myutils.get_world_cloud(transcript, pod_name, speakers_dict)
+            utils.get_world_cloud(transcript, pod_name, speakers_dict)
         st.download_button("Download transcript", transcript[3:])
         if st.button("Download"):
             handle_document(pod_name, speakers_dict)

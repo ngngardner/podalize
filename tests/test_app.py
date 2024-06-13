@@ -9,13 +9,13 @@ import pytest
 from podalize.app import handle_segments, handle_speakers, process_audio
 from podalize.configs import path2logs, use_auth_token
 from podalize.DocumentGenerator import DocumentGenerator
-from podalize.myutils import (
+from podalize.utils import (
+    audio2wav,
     get_diarization,
     get_spoken_time,
     get_transcript,
     get_world_cloud,
     merge_tran_diar,
-    mp3wav,
 )
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ def test_get_transcript(
     """Test transcript generation on a sample audio file."""
     raw_transcript = get_transcript(
         model_size="tiny",
-        path2audio=mp3wav(sample_audio_two_speakers),
+        path2audio=audio2wav(sample_audio_two_speakers),
     )
     assert raw_transcript["text"] == two_speakers_raw_transcript
 

@@ -42,7 +42,11 @@ cmd = "streamlit run podalize/__main__.py"
 env = { LOG_LEVEL = "DEBUG" }
 
 [tool.pytest.ini_options]
-addopts = ["--cov=podalize", "--cov-report=term-missing"]
+addopts = [
+    "--cov=podalize",
+    "--cov-report=term-missing",
+    "--cov-report=xml:coverage.xml",
+]
 
 [tool.ruff]
 target-version = "py310"

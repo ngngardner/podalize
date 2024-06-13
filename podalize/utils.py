@@ -11,38 +11,16 @@ import numpy as np
 import streamlit as st
 import whisper
 from pyannote.audio import Pipeline
-from pydub import AudioSegment
-from pytube import YouTube
 
 from podalize.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def yt_downloader(url, destination, bitrate="48k", verbose=True):
-    video = YouTube(str(url))
-    video = video.streams.filter(only_audio=True).first()
-    title = video.title
-    logger.debug(f"downloading {title}")
-    out_file = video.download(destination)
-    _, ext = os.path.splitext(out_file)
-    path2mp3 = out_file.replace(ext, ".mp3")
-    if os.path.exists(path2mp3):
-        return path2mp3
-    audio_mp4 = AudioSegment.from_file(out_file, "mp4")
-    audio_mp4.export(path2mp3, format="mp3", bitrate=bitrate)
-    os.remove(out_file)
-    logger.debug(f"exported {os.path.basename(path2mp3)}")
-    return path2mp3
-
-
 def youtube_downloader(url, destination):
-    try:
-        rnd_num = np.random.randint(1e6)
-        path2mp3 = str(Path(f"./data/audio_{rnd_num}.mp3"))
-        os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")
-    except Exception as e:
-        print(e)
+    rnd_num = np.random.randint(1e6)
+    path2mp3 = str(Path(f"{destination}/audio_{rnd_num}.mp3"))
+    os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")
     return path2mp3
 
 
@@ -150,53 +128,24 @@ def get_transcript(model_size, path2audio):
     return result
 
 
-def merge_intervals(intervals_dict):
-    intervals = list(intervals_dict.keys())
-    speakers = list(intervals_dict.values())
-    assert len(intervals) == len(speakers)
-
-    sorted_intervals = intervals  # sorted(intervals, key=lambda x: x[0])
-    sorted_speakers = [[sp] for sp in speakers]
-
-    interval_index = 0
-    for inv, sp in zip(sorted_intervals, sorted_speakers, strict=False):
-        if inv[0] > sorted_intervals[interval_index][1]:
-            interval_index += 1
-            sorted_intervals[interval_index] = inv
-            sorted_speakers[interval_index] = sp
-        else:
-            sorted_intervals[interval_index] = [
-                sorted_intervals[interval_index][0],
-                inv[1],
-            ]
-            sorted_speakers[interval_index].extend(sp)
-
-    intervals = sorted_intervals[: interval_index + 1]
-    speakers = sorted_speakers[: interval_index + 1]
-    assert len(intervals) == len(speakers)
-    speakers = [list(set(sp)) for sp in speakers]
-
-    intervals_dict = {
-        (inv[0], inv[1]): sp for inv, sp in zip(intervals, speakers, strict=False)
-    }
-    return intervals_dict
-
-
 def getOverlap(a, b):
     return max(0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
-def mp3wav(p2mp3):
-    if ".wav" in p2mp3:
-        return p2mp3
-    p2wav = p2mp3.replace(".mp3", ".wav")
+def audio2wav(p2audio, verbose=False):
+    if ".wav" in p2audio:
+        logger.debug("audio is in wav format!")
+        return p2audio
+    _, ext = os.path.splitext(p2audio)
+    p2wav = p2audio.replace(ext, ".wav")
     if os.path.exists(p2wav):
+        logger.debug(f"{p2audio} exists!")
         return p2wav
 
     from pydub import AudioSegment
 
-    logger.debug(f"loading {p2mp3}")
-    sound = AudioSegment.from_mp3(p2mp3)
+    logger.debug(f"loading {p2audio}")
+    sound = AudioSegment.from_file(p2audio)
 
     logger.debug(f"exporting to {p2wav}")
     sound.export(p2wav, format="wav")
@@ -220,7 +169,7 @@ def get_diarization(p2audio, use_auth_token):
             logger.debug(f"dumped diarization to {p2s}")
 
     else:
-        p2audio = mp3wav(p2audio)
+        p2audio = audio2wav(p2audio)
         logger.debug("loading model ...")
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
@@ -294,23 +243,3 @@ def get_audio_format(p2a, verbose=False):
     audio_format = magic.from_buffer(audio_data, mime=True)
     logger.debug(f"The audio file is in the {audio_format} format.")
     return audio_format
-
-
-def audio2wav(p2audio, verbose=False):
-    if ".wav" in p2audio:
-        logger.debug("audio is in wav format!")
-        return p2audio
-    _, ext = os.path.splitext(p2audio)
-    p2wav = p2audio.replace(ext, ".wav")
-    if os.path.exists(p2wav):
-        logger.debug(f"{p2audio} exists!")
-        return p2wav
-
-    from pydub import AudioSegment
-
-    logger.debug(f"loading {p2audio}")
-    sound = AudioSegment.from_file(p2audio)
-
-    logger.debug(f"exporting to {p2wav}")
-    sound.export(p2wav, format="wav")
-    return p2wav
