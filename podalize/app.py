@@ -12,7 +12,10 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from podalize.configs import *
 from podalize.DocumentGenerator import DocumentGenerator
+from podalize.logger import get_logger
 from podalize.myutils import *
+
+logger = get_logger(__name__)
 
 
 def get_file_audio(uploaded_file: UploadedFile):
@@ -42,11 +45,9 @@ def process_audio(p2audio):
     diarization = get_diarization(p2audio, use_auth_token)
     p2audio = mp3wav(p2audio)
     labels = diarization.labels()
-    if verbose:
-        print(f"speakers: {labels}")
+    logger.debug(f"speakers: {labels}")
     y, sr = torchaudio.load(p2audio)
-    if verbose:
-        print(f"audio shape: {y.shape}, sample rate: {sr}")
+    logger.debug(f"audio shape: {y.shape}, sample rate: {sr}")
     return diarization, labels, y, sr
 
 
@@ -121,13 +122,11 @@ def handle_document(pod_name, speakers_dict):
 
     output = output[3:]
     rg.add_section("Transcript", output)
-    if verbose is True:
-        print(f"number of figures: {rg.fig_count}")
+    logger.debug(f"number of figures: {rg.fig_count}")
     path2pdf = f"{path2logs}/podalize_{pod_name}"
     # rg.doc.generate_pdf(path2pdf, clean_tex=False, compiler='pdfLaTeX')
     rg.doc.generate_pdf(path2pdf, clean_tex=False)
-    if verbose is True:
-        print("podalized!")
+    logger.debug("podalized!")
 
 
 def app():

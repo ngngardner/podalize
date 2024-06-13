@@ -37,6 +37,10 @@ test = "pytest"
 format = "ruff check --fix ."
 app = "streamlit run podalize/__main__.py"
 
+[tool.poe.tasks.debug]
+cmd = "streamlit run podalize/__main__.py"
+env = { LOG_LEVEL = "DEBUG" }
+
 [tool.pytest.ini_options]
 addopts = ["--cov=podalize", "--cov-report=term-missing"]
 
