@@ -10,7 +10,7 @@ from pylatex import (
 )
 from pylatex.utils import NoEscape
 
-from myutils import *
+from podalize.myutils import *
 
 
 class DocumentGenerator:
@@ -27,7 +27,7 @@ class DocumentGenerator:
         with self.doc.create(Section(section_title)):
             self.doc.append(section_content)
 
-    def add_sub_section(self,ss_title, ss_content):
+    def add_sub_section(self, ss_title, ss_content):
         with self.doc.create(Subsection(ss_title)):
             self.doc.append(ss_content)
 
@@ -38,17 +38,20 @@ class DocumentGenerator:
             pic.add_image(filename, width=width)
             pic.add_caption(caption)
         self.fig_count += 1
+
     def add_new_page(self):
         self.doc.append(NewPage())
 
     def add_pandas_table(self, df):
         nr, nc = df.shape
-        with self.doc.create(Tabular("c"*(nc+1), pos="centering", row_height=2)) as table:
+        with self.doc.create(
+            Tabular("c" * (nc + 1), pos="centering", row_height=2),
+        ) as table:
             table.add_hline()
-            table.add_row([""] +list(df.columns))
+            table.add_row([""] + list(df.columns))
             table.add_hline()
             for row in df.index:
-                table.add_row([row] + list(df.loc[row,:]))
+                table.add_row([row] + list(df.loc[row, :]))
             table.add_hline()
 
     def add_new_lines(self, n=1):

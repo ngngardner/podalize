@@ -22,22 +22,40 @@ pytube = "12.1.0"
 streamlit = "1.14.0"
 torchaudio = "^2.3.1"
 openai-whisper = "20231117"
-wordcloud = "1.8.2.2"
 yt-dlp = "^2024.5.27"
+wordcloud = "^1.9.3"
 
 [tool.poetry.group.dev.dependencies]
 poethepoet = "^0.26.1"
 ruff = "^0.4.8"
 pytest = "^8.2.2"
 pytest-sugar = "^1.0.0"
+pytest-cov = "^5.0.0"
 
+[tool.poe.tasks]
+test = "pytest"
+format = "ruff check --fix ."
+app = "streamlit run podalize/app.py"
+
+[tool.pytest.ini_options]
+addopts = ["--cov=podalize", "--cov-report=term-missing"]
+
+[tool.coverage.run]
+omit = [
+    # temporarily omit app (needs to be split)
+    # TODO: remove this
+    "app.py",
+]
 
 [tool.ruff]
 target-version = "py310"
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = []
+ignore = [
+    # use of assert
+    "S101",
+]
 
 fixable = ["ALL"]
 unfixable = []

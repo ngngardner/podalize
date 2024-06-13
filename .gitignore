@@ -6,6 +6,10 @@
 
 *.token
 
+tests/artifacts/**
+!tests/artifacts/__init__.py
+!tests/artifacts/sample_audio_two_speakers.wav
+
 
 .vscode
 podcast
