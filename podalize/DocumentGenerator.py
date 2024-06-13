@@ -1,3 +1,5 @@
+import os
+
 from pylatex import (
     Command,
     Document,
@@ -9,8 +11,6 @@ from pylatex import (
     Tabular,
 )
 from pylatex.utils import NoEscape
-
-from podalize.myutils import *
 
 
 class DocumentGenerator:

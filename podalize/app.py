@@ -10,16 +10,15 @@ import torch
 import torchaudio
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from podalize.configs import *
+from podalize import configs, myutils
 from podalize.DocumentGenerator import DocumentGenerator
 from podalize.logger import get_logger
-from podalize.myutils import *
 
 logger = get_logger(__name__)
 
 
 def get_file_audio(uploaded_file: UploadedFile):
-    p2audio = os.path.join(path2audios, uploaded_file.name)
+    p2audio = os.path.join(configs.path2audios, uploaded_file.name)
     if not os.path.exists(p2audio):
         with open(p2audio, "wb") as f:
             f.write(uploaded_file.getvalue())
@@ -28,22 +27,22 @@ def get_file_audio(uploaded_file: UploadedFile):
 
 def get_youtube_audio(youtube_url):
     if "youtube.com" in youtube_url:
-        p2audio = youtube_downloader(youtube_url, path2audios)
+        p2audio = myutils.youtube_downloader(youtube_url, configs.path2audios)
     else:
-        path2out = os.path.join(path2audios, "audio.unknown")
+        path2out = os.path.join(configs.path2audios, "audio.unknown")
         subprocess.run(
             ["youtube-dl", f"{youtube_url}", f"-o{path2out}"],
             check=False,
         )
-        p2audio = audio2wav(path2out)
+        p2audio = myutils.audio2wav(path2out)
         os.remove(path2out)
     return p2audio
 
 
 def process_audio(p2audio):
     # diarization
-    diarization = get_diarization(p2audio, use_auth_token)
-    p2audio = mp3wav(p2audio)
+    diarization = myutils.get_diarization(p2audio, configs.use_auth_token)
+    p2audio = myutils.mp3wav(p2audio)
     labels = diarization.labels()
     logger.debug(f"speakers: {labels}")
     y, sr = torchaudio.load(p2audio)
@@ -55,10 +54,10 @@ def handle_speakers(diarization, labels, y, sr):
     speakers_dict = {}
     for ii, sp in enumerate(labels):
         speakers_dict[sp] = st.text_input(f"Speaker_{ii}", sp)
-        s, e, _ = get_larget_duration(diarization, sp)
+        s, e, _ = myutils.get_larget_duration(diarization, sp)
         s1 = int(s * sr)
         e1 = int(e * sr)
-        path2sp = f"{path2audios}/{sp}.wav"
+        path2sp = f"{configs.path2audios}/{sp}.wav"
         waveform = y[:, s1:e1]
         torchaudio.save(path2sp, waveform, sr)
         st.audio(path2sp, format="audio/wav", start_time=0)
@@ -95,20 +94,20 @@ def generate_figs(speakers_dict, spoken_time_secs):
         startangle=90,
     )
     ax1.axis("equal")
-    fig1.savefig(f"{path2logs}/spoken_time.png")
+    fig1.savefig(f"{configs.path2logs}/spoken_time.png")
     st.pyplot(fig1)
 
 
-def handle_document(pod_name, speakers_dict):
+def handle_document(transcript, pod_name, speakers_dict):
     # list of figures
-    spoken_fig = glob(path2logs + "/spoken*.png")
-    all_figs = glob(path2logs + "/*.png")
+    spoken_fig = glob(configs.path2logs + "/spoken*.png")
+    all_figs = glob(configs.path2logs + "/*.png")
     wc_figs = [f for f in all_figs if [v for v in speakers_dict.values() if v in f]]
 
     args = {
         "title": pod_name,
         "author": "Created by Podalize",
-        "path2logs": path2logs,
+        "path2logs": configs.path2logs,
     }
     rg = DocumentGenerator(**args)
 
@@ -120,10 +119,10 @@ def handle_document(pod_name, speakers_dict):
         rg.add_image(f, caption="Word cloud per speaker")
         rg.add_new_page()
 
-    output = output[3:]
+    output = transcript[3:]
     rg.add_section("Transcript", output)
     logger.debug(f"number of figures: {rg.fig_count}")
-    path2pdf = f"{path2logs}/podalize_{pod_name}"
+    path2pdf = f"{configs.path2logs}/podalize_{pod_name}"
     # rg.doc.generate_pdf(path2pdf, clean_tex=False, compiler='pdfLaTeX')
     rg.doc.generate_pdf(path2pdf, clean_tex=False)
     logger.debug("podalized!")
@@ -149,10 +148,10 @@ def app():
             speakers_dict = handle_speakers(diarization, labels, y, sr)
         model_sizes = ["tiny", "small", "base", "medium", "large"]
         model_size = st.selectbox("Select Model Size", model_sizes, index=3)
-        result = get_transcript(model_size=model_size, path2audio=p2audio)
+        result = myutils.get_transcript(model_size=model_size, path2audio=p2audio)
 
         segements_dict = handle_segments(p2audio)
-        transcript = merge_tran_diar(result, segements_dict, speakers_dict)
+        transcript = myutils.merge_tran_diar(result, segements_dict, speakers_dict)
         st.subheader("Transcript")
         st.text_area(
             label="transcript",
@@ -162,12 +161,13 @@ def app():
         )
 
         speakers = list(speakers_dict.keys())
-        spoken_time, spoken_time_secs = get_spoken_time(result, speakers)
+        spoken_time, spoken_time_secs = myutils.get_spoken_time(result, speakers)
 
         generate_figs(speakers_dict, spoken_time_secs)
-        get_world_cloud(result, speakers_dict)
 
         pod_name = st.text_input("Enter Podcast Name", value=os.path.basename(p2audio))
+        if pod_name:
+            myutils.get_world_cloud(transcript, pod_name, speakers_dict)
         st.download_button("Download transcript", transcript[3:])
         if st.button("Download"):
             handle_document(pod_name, speakers_dict)
