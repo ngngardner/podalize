@@ -1,14 +1,17 @@
 """Test the main application."""
 
-import os
-from glob import glob
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-from podalize.app import handle_segments, handle_speakers, process_audio
-from podalize.configs import path2logs, use_auth_token
-from podalize.DocumentGenerator import DocumentGenerator
+from podalize.app import (
+    handle_document,
+    handle_segments,
+    handle_speakers,
+    process_audio,
+)
+from podalize.configs import use_auth_token
 from podalize.utils import (
     audio2wav,
     get_diarization,
@@ -78,35 +81,13 @@ def test_word_cloud(sample_audio_two_speakers: str) -> None:
         result,
         {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"},
     )
-    print(result)
     assert word_cloud is None
 
 
-def test_document_generator(sample_audio_two_speakers: str) -> None:
-    """Test DocumentGenerator."""
-    spoken_fig = glob(path2logs + "/spoken*.png")
-    all_figs = glob(path2logs + "/*.png")
+@pytest.mark.skip(reason="requires pdflatex")
+def test_handle_document(sample_audio_two_speakers: str) -> None:
+    """Test handle document generation on a sample audio file."""
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
     speakers_dict = handle_speakers(diarization, labels, y, sr)
-    wc_figs = [f for f in all_figs if [v for v in speakers_dict.values() if v in f]]
-
-    pod_name = os.path.basename(sample_audio_two_speakers)
-    args = {
-        "title": pod_name,
-        "author": "Created by Podalize",
-        "path2logs": path2logs,
-    }
-    rg = DocumentGenerator(**args)
-
-    for f in spoken_fig:
-        rg.add_image(f, caption="Percentage of spoken time per speaker")
-        rg.add_new_page()
-
-    for f in wc_figs:
-        rg.add_image(f, caption="Word cloud per speaker")
-        rg.add_new_page()
-
-    rg.add_section("Transcript", "placeholder transcript")
-    path2pdf = f"{path2logs}/podalize_{pod_name}"
-    # rg.doc.generate_pdf(path2pdf, clean_tex=False, compiler='pdfLaTeX')
-    # rg.doc.generate_pdf(path2pdf, clean_tex=False)
+    pod_name = Path(sample_audio_two_speakers).name
+    handle_document("placeholder transcript", pod_name, speakers_dict)

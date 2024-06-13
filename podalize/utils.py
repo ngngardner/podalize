@@ -1,27 +1,46 @@
+"""Podalize utilities module."""
+
 import datetime
+import hashlib
 import json
 import os
 import pickle
+import shutil
 import time
+import uuid
 from pathlib import Path
 from textwrap import dedent
 
+import magic
 import matplotlib.pyplot as plt
-import numpy as np
 import streamlit as st
 import whisper
 from pyannote.audio import Pipeline
+from wordcloud import WordCloud
 
 from podalize.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def youtube_downloader(url, destination):
-    rnd_num = np.random.randint(1e6)
-    path2mp3 = str(Path(f"{destination}/audio_{rnd_num}.mp3"))
-    os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")
-    return path2mp3
+def hash_audio_file(file_path: str, chunk_size: int = 8192) -> str:
+    """Hash an audio file to create a unique reusable identifier."""
+    hasher = hashlib.sha256()
+    with Path(file_path).open("rb") as audio_file:
+        while chunk := audio_file.read(chunk_size):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def youtube_downloader(url: str, destination: str) -> str:
+    """Download a youtube video to a destination folder."""
+    path2mp3 = str(Path(f"{destination}/audio_{uuid.uuid4()}.mp3"))
+    os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")  # noqa: S605
+
+    ident = hash_audio_file(path2mp3)
+    out_path = f"{destination}/audio_{ident}.mp3"
+    shutil.move(path2mp3, out_path)
+    return out_path
 
 
 def merge_tran_diar(result, segements_dict, speakers_dict):
@@ -180,19 +199,20 @@ def get_diarization(p2audio, use_auth_token):
         diarization = pipeline(p2audio)
 
         # save diarization
-        with open(p2p, "wb") as handle:
+        with Path(p2s).open("wb") as handle:
             pickle.dump(diarization, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         speaker_dict = {}
         segments_dict = get_segments(diarization, speaker_dict)
-        with open(p2s, "w") as f:
+        with Path(p2s).open("w") as f:
             json.dump(segments_dict, f)
             logger.debug(f"dumped diarization to {p2s}")
 
     return diarization
 
 
-def get_spoken_time(result, speakers):
+def get_spoken_time(result: dict, speakers: dict) -> (dict, dict):
+    """Get spoken time for each speaker."""
     spoken_time = {}
     spoken_time_secs = {}
     for sp in speakers:
@@ -209,9 +229,12 @@ def get_spoken_time(result, speakers):
     return spoken_time, spoken_time_secs
 
 
-def get_world_cloud(result, speakers_dict, path2figs="./data/logs"):
-    from wordcloud import WordCloud
-
+def get_world_cloud(
+    result: dict,
+    speakers_dict: dict,
+    path2figs: str = "./data/logs",
+) -> list:
+    """Generate a wordcloud figure for each speaker."""
     speakers = result["speakers"]
     figs = []
     for sp in speakers:
@@ -235,11 +258,10 @@ def get_world_cloud(result, speakers_dict, path2figs="./data/logs"):
     return figs
 
 
-def get_audio_format(p2a, verbose=False):
-    import magic
-
-    with open(p2a, "rb") as f:
+def get_audio_format(p2a: str) -> str:
+    """Given a path to an audio file, return the file format."""
+    with Path(p2a).open("rb") as f:
         audio_data = f.read()
     audio_format = magic.from_buffer(audio_data, mime=True)
-    logger.debug(f"The audio file is in the {audio_format} format.")
+    logger.debug("The audio file is in the format %s.", audio_format)
     return audio_format

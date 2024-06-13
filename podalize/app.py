@@ -1,13 +1,16 @@
+"""Main Podalize application module."""
+
 import datetime
 import json
-import os
+import shutil
 import subprocess
-from glob import glob
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import streamlit as st
 import torch
 import torchaudio
+from pyannote.core.annotation import Annotation
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from podalize import configs, utils
@@ -17,40 +20,49 @@ from podalize.logger import get_logger
 logger = get_logger(__name__)
 
 
-def get_file_audio(uploaded_file: UploadedFile):
-    p2audio = os.path.join(configs.path2audios, uploaded_file.name)
-    if not os.path.exists(p2audio):
-        with open(p2audio, "wb") as f:
+def get_file_audio(uploaded_file: UploadedFile) -> str:
+    """Download an uploaded file to a destination folder."""
+    p2audio = Path(configs.path2audios) / uploaded_file.name
+    if not Path(p2audio).exists():
+        with Path(p2audio).open("wb") as f:
             f.write(uploaded_file.getvalue())
     return p2audio
 
 
-def get_youtube_audio(youtube_url):
+def get_youtube_audio(youtube_url: str) -> str:
+    """Download a youtube video to a destination folder."""
     if "youtube.com" in youtube_url:
         p2audio = utils.youtube_downloader(youtube_url, configs.path2audios)
     else:
-        path2out = os.path.join(configs.path2audios, "audio.unknown")
+        path2out = Path(configs.path2audios / "audio.unknown")
+        youtube_dl_path = shutil.which("youtube-dl")
         subprocess.run(
-            ["youtube-dl", f"{youtube_url}", f"-o{path2out}"],
+            [youtube_dl_path, youtube_url, f"-o{path2out}"],  # noqa: S603
             check=False,
         )
         p2audio = utils.audio2wav(path2out)
-        os.remove(path2out)
+        Path(path2out).unlink()
     return p2audio
 
 
-def process_audio(p2audio):
-    # diarization
+def process_audio(p2audio: str) -> (Annotation, dict, torch.Tensor, int):
+    """Process the audio file and create diarization and labels."""
     diarization = utils.get_diarization(p2audio, configs.use_auth_token)
     p2audio = utils.audio2wav(p2audio)
     labels = diarization.labels()
-    logger.debug(f"speakers: {labels}")
+    logger.debug("speakers: %s", labels)
     y, sr = torchaudio.load(p2audio)
-    logger.debug(f"audio shape: {y.shape}, sample rate: {sr}")
+    logger.debug("audio shape: %s, sample rate: %s", y.shape, sr)
     return diarization, labels, y, sr
 
 
-def handle_speakers(diarization, labels, y, sr):
+def handle_speakers(
+    diarization: Annotation,
+    labels: dict,
+    y: torch.Tensor,
+    sr: int,
+) -> dict:
+    """Create the speakers dictionary based on the diarization."""
     speakers_dict = {}
     for ii, sp in enumerate(labels):
         speakers_dict[sp] = st.text_input(f"Speaker_{ii}", sp)
@@ -64,25 +76,27 @@ def handle_speakers(diarization, labels, y, sr):
     return speakers_dict
 
 
-def handle_segments(p2audio):
+def handle_segments(p2audio: str) -> dict:
+    """Create the segments dictionary."""
     p2s = p2audio.replace(".wav", "_diar.json")
-    with open(p2s) as f:
-        segements = json.load(f)
+    with Path(p2s).open() as f:
+        segments = json.load(f)
 
-    segements_dict = {}
-    for k, v in segements.items():
-        k = [float(i) for i in k.split(",")]
-        segements_dict[(k[0], k[1])] = v
-    return segements_dict
+    segments_dict = {}
+    for key, v in segments.items():
+        seg_key = [float(i) for i in key.split(",")]
+        segments_dict[(seg_key[0], seg_key[1])] = v
+    return segments_dict
 
 
-def generate_figs(speakers_dict, spoken_time_secs):
+def generate_figs(speakers_dict: dict, spoken_time_secs: dict) -> None:
+    """Generate figures for spoken time."""
     st.header("Analyze")
     st.subheader("Spoken Time")
     labels = list(speakers_dict.values())
     sizes = spoken_time_secs.values()
     sizes_str = [str(datetime.timedelta(seconds=round(s, 0))) for s in sizes]
-    labels = [f"{l},\n{z}" for l, z in zip(labels, sizes_str, strict=False)]
+    labels = [f"{label},\n{z}" for label, z in zip(labels, sizes_str, strict=False)]
     explode = (0.05,) * len(labels)
     fig1, ax1 = plt.subplots()
     ax1.pie(
@@ -98,10 +112,10 @@ def generate_figs(speakers_dict, spoken_time_secs):
     st.pyplot(fig1)
 
 
-def handle_document(transcript, pod_name, speakers_dict):
-    # list of figures
-    spoken_fig = glob(configs.path2logs + "/spoken*.png")
-    all_figs = glob(configs.path2logs + "/*.png")
+def handle_document(transcript: str, pod_name: str, speakers_dict: dict) -> None:
+    """Create a .pdf document for download based on the generated transcript."""
+    spoken_fig = Path(configs.path2logs).glob("spoken*.png")
+    all_figs = Path(configs.path2logs).glob("$*.png")
     wc_figs = [f for f in all_figs if [v for v in speakers_dict.values() if v in f]]
 
     args = {
@@ -121,14 +135,14 @@ def handle_document(transcript, pod_name, speakers_dict):
 
     output = transcript[3:]
     rg.add_section("Transcript", output)
-    logger.debug(f"number of figures: {rg.fig_count}")
+    logger.debug("number of figures: %s", rg.fig_count)
     path2pdf = f"{configs.path2logs}/podalize_{pod_name}"
-    # rg.doc.generate_pdf(path2pdf, clean_tex=False, compiler='pdfLaTeX')
     rg.doc.generate_pdf(path2pdf, clean_tex=False)
     logger.debug("podalized!")
 
 
-def app():
+def app() -> None:
+    """Run main application."""
     if torch.cuda.is_available():
         st.text(f"cuda device: {torch.cuda.get_device_name()}")
 
@@ -165,9 +179,7 @@ def app():
 
         generate_figs(speakers_dict, spoken_time_secs)
 
-        pod_name = st.text_input("Enter Podcast Name", value=os.path.basename(p2audio))
-        if pod_name:
-            utils.get_world_cloud(transcript, pod_name, speakers_dict)
+        pod_name = st.text_input("Enter Podcast Name", value=Path(p2audio).name)
         st.download_button("Download transcript", transcript[3:])
         if st.button("Download"):
             handle_document(pod_name, speakers_dict)
