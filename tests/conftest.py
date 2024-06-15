@@ -8,16 +8,17 @@ import pytest
 from _pytest.fixtures import SubRequest
 
 import podalize
+from podalize.app import audio_fingerprint_dir
 
 
 @pytest.fixture(autouse=True)
 def _setup_dirs(tmp_path: Path) -> None:
     """Initialize directories."""
-    audio_path = tmp_path / ".podalize"
-    log_path = audio_path / "logs"
-    audio_path.mkdir()
+    podalize_path = tmp_path / ".podalize"
+    log_path = podalize_path / "logs"
+    podalize_path.mkdir()
     log_path.mkdir()
-    podalize.configs.audio_path = audio_path
+    podalize.configs.podalize_path = podalize_path
     podalize.configs.log_path = log_path
 
 
@@ -30,9 +31,9 @@ def _setup_dirs(tmp_path: Path) -> None:
 def sample_audio_two_speakers(request: SubRequest) -> Path:
     """Sample audio files for unit tests."""
     with resources.path("tests.artifacts", request.param) as path:
-        dest: Path = podalize.configs.audio_path / request.param
+        dest: Path = podalize.configs.podalize_path / request.param
         shutil.copy(path, dest)
-    return dest
+    return audio_fingerprint_dir(dest)
 
 
 @pytest.fixture()

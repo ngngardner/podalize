@@ -47,7 +47,7 @@ def test_get_transcript(
 def test_handle_speakers(sample_audio_two_speakers: Path) -> None:
     """Test speaker handling on a sample audio file."""
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
-    speakers = handle_speakers(diarization, labels, y, sr)
+    speakers = handle_speakers(sample_audio_two_speakers, diarization, labels, y, sr)
     assert speakers == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
@@ -62,7 +62,13 @@ def test_transcript(
     )
 
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
-    speakers_dict = handle_speakers(diarization, labels, y, sr)
+    speakers_dict = handle_speakers(
+        sample_audio_two_speakers,
+        diarization,
+        labels,
+        y,
+        sr,
+    )
     segements_dict = handle_segments(sample_audio_two_speakers)
     transcript = merge_tran_diar(raw_transcript_json, segements_dict, speakers_dict)
     assert transcript == two_speakers_transcript
@@ -88,6 +94,12 @@ def test_word_cloud(sample_audio_two_speakers: Path) -> None:
 def test_handle_document(sample_audio_two_speakers: Path) -> None:
     """Test handle document generation on a sample audio file."""
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
-    speakers_dict = handle_speakers(diarization, labels, y, sr)
+    speakers_dict = handle_speakers(
+        sample_audio_two_speakers,
+        diarization,
+        labels,
+        y,
+        sr,
+    )
     pod_name = sample_audio_two_speakers.name
     handle_document("placeholder transcript", pod_name, speakers_dict)

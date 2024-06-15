@@ -18,6 +18,7 @@ import whisper
 from pyannote.audio import Pipeline
 from pyannote.core.annotation import Annotation
 from pydantic import BaseModel
+from pydub import AudioSegment
 from wordcloud import WordCloud
 
 from podalize.logger import get_logger
@@ -195,8 +196,6 @@ def audio2wav(p2audio: Path) -> Path:
     if p2wav.exists():
         logger.debug("%s exists!", p2audio)
         return p2wav
-
-    from pydub import AudioSegment
 
     logger.debug("loading %s", p2audio)
     sound = AudioSegment.from_file(p2audio)

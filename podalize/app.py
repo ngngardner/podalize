@@ -20,21 +20,30 @@ from podalize.logger import get_logger
 logger = get_logger(__name__)
 
 
+def audio_fingerprint_dir(audio_path: Path) -> Path:
+    """Create the fingerprint dir for a given audio file."""
+    fingerprint = utils.hash_audio_file(audio_path)
+    dest = configs.podalize_path / fingerprint
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.move(audio_path, dest / audio_path.name)
+    return dest / audio_path.name
+
+
 def get_file_audio(uploaded_file: UploadedFile) -> Path:
     """Download an uploaded file to a destination folder."""
-    p2audio = configs.audio_path / str(uploaded_file.name)
+    p2audio = configs.tmp_path / str(uploaded_file.name)
     if not p2audio.exists():
         with p2audio.open("wb") as f:
             f.write(uploaded_file.getvalue())
-    return p2audio
+    return audio_fingerprint_dir(p2audio)
 
 
 def get_youtube_audio(youtube_url: str) -> Path:
     """Download a youtube video to a destination folder."""
     if "youtube.com" in youtube_url:
-        p2audio = utils.youtube_downloader(youtube_url, configs.audio_path)
+        p2audio = utils.youtube_downloader(youtube_url, configs.podalize_path)
     else:
-        path2out = configs.audio_path / "audio.unknown"
+        path2out = configs.podalize_path / "audio.unknown"
         youtube_dl_path = shutil.which("youtube-dl")
         if not youtube_dl_path:
             msg = "youtube-dl not found in PATH"
@@ -45,7 +54,7 @@ def get_youtube_audio(youtube_url: str) -> Path:
         )
         p2audio = utils.audio2wav(path2out)
         path2out.unlink()
-    return p2audio
+    return audio_fingerprint_dir(p2audio)
 
 
 def process_audio(p2audio: Path) -> tuple[Annotation, list[str], torch.Tensor, int]:
@@ -60,6 +69,7 @@ def process_audio(p2audio: Path) -> tuple[Annotation, list[str], torch.Tensor, i
 
 
 def handle_speakers(
+    p2audio: Path,
     diarization: Annotation,
     labels: list[str],
     y: torch.Tensor,
@@ -72,10 +82,10 @@ def handle_speakers(
         s, e, _ = utils.get_largest_duration(diarization, sp)
         s1 = int(s * sr)
         e1 = int(e * sr)
-        path2sp = f"{configs.audio_path}/{sp}.wav"
+        path2sp = p2audio.parent / f"{sp}.wav"
         waveform = y[:, s1:e1]
         torchaudio.save(path2sp, waveform, sr)
-        st.audio(path2sp, format="audio/wav", start_time=0)
+        st.audio(str(path2sp), format="audio/wav", start_time=0)
     return speakers_dict
 
 
@@ -98,6 +108,7 @@ def handle_segments(p2audio: Path) -> dict[tuple[float, float], str]:
 
 
 def generate_figs(
+    p2audio: Path,
     speakers_dict: dict[str, str],
     spoken_time_secs: dict[str, float],
 ) -> None:
@@ -119,7 +130,7 @@ def generate_figs(
         startangle=90,
     )
     ax1.axis("equal")
-    fig1.savefig(f"{configs.log_path}/spoken_time.png")
+    fig1.savefig(p2audio.parent / "spoken_time.png")
     st.pyplot(fig1)
 
 
@@ -174,7 +185,7 @@ def app() -> None:
 
         diarization, labels, y, sr = process_audio(p2audio)
         with st.sidebar:
-            speakers_dict = handle_speakers(diarization, labels, y, sr)
+            speakers_dict = handle_speakers(p2audio, diarization, labels, y, sr)
         model_sizes = ["tiny", "small", "base", "medium", "large"]
         model_size = st.selectbox("Select Model Size", model_sizes, index=3)
         result = utils.get_transcript(
@@ -195,7 +206,7 @@ def app() -> None:
         speakers = list(speakers_dict.keys())
         spoken_time, spoken_time_secs = utils.get_spoken_time(result, speakers)
 
-        generate_figs(speakers_dict, spoken_time_secs)
+        generate_figs(p2audio, speakers_dict, spoken_time_secs)
 
         pod_name = st.text_input("Enter Podcast Name", value=p2audio.name)
         st.download_button("Download transcript", transcript[3:])
