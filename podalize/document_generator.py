@@ -26,9 +26,9 @@ class DocumentGenerator:
 
     def __init__(
         self: DocumentGenerator,
-        path2logs: str,
         title: str,
         author: str,
+        path2logs: Path,
     ) -> None:
         """Initialize the Document Generator class."""
         self.path2logs = path2logs

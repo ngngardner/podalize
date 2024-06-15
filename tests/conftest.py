@@ -1,9 +1,24 @@
 """Pytest configuration."""
 
+import shutil
 from importlib import resources
+from pathlib import Path
 
 import pytest
 from _pytest.fixtures import SubRequest
+
+import podalize
+
+
+@pytest.fixture(autouse=True)
+def _setup_dirs(tmp_path: Path) -> None:
+    """Initialize directories."""
+    audio_path = tmp_path / ".podalize"
+    log_path = audio_path / "logs"
+    audio_path.mkdir()
+    log_path.mkdir()
+    podalize.configs.audio_path = audio_path
+    podalize.configs.log_path = log_path
 
 
 @pytest.fixture(
@@ -12,23 +27,12 @@ from _pytest.fixtures import SubRequest
         "sample_audio_two_speakers.mp3",
     ],
 )
-def sample_audio_two_speakers(request: SubRequest) -> str:
+def sample_audio_two_speakers(request: SubRequest) -> Path:
     """Sample audio files for unit tests."""
-    for ext in ["json", "pkl"]:
-        with resources.path(
-            "tests.artifacts",
-            f"sample_audio_two_speakers_diar.{ext}",
-        ) as path:
-            if path.exists():
-                path.unlink()
-        with resources.path(
-            "tests.artifacts",
-            f"sample_audio_two_speakers_tiny.{ext}",
-        ) as path:
-            if path.exists():
-                path.unlink()
     with resources.path("tests.artifacts", request.param) as path:
-        return str(path)
+        dest: Path = podalize.configs.audio_path / request.param
+        shutil.copy(path, dest)
+    return dest
 
 
 @pytest.fixture()

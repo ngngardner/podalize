@@ -50,22 +50,22 @@ class Result(BaseModel):
     speakers: list[str] | None = None
 
 
-def hash_audio_file(file_path: str, chunk_size: int = 8192) -> str:
+def hash_audio_file(file_path: Path, chunk_size: int = 8192) -> str:
     """Hash an audio file to create a unique reusable identifier."""
     hasher = hashlib.sha256()
-    with Path(file_path).open("rb") as audio_file:
+    with file_path.open("rb") as audio_file:
         while chunk := audio_file.read(chunk_size):
             hasher.update(chunk)
     return hasher.hexdigest()
 
 
-def youtube_downloader(url: str, destination: str) -> str:
+def youtube_downloader(url: str, destination: Path) -> Path:
     """Download a youtube video to a destination folder."""
-    path2mp3 = str(Path(f"{destination}/audio_{uuid.uuid4()}.mp3"))
+    path2mp3 = destination / f"audio_{uuid.uuid4()}.mp3"
     os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")  # noqa: S605
 
     ident = hash_audio_file(path2mp3)
-    out_path = f"{destination}/audio_{ident}.mp3"
+    out_path = destination / f"audio_{ident}.mp3"
     shutil.move(path2mp3, out_path)
     return out_path
 
@@ -156,13 +156,12 @@ def get_largest_duration(
     return s, e, maxsofar
 
 
-def get_transcript(model_size: str, path2audio: str) -> Result:
+def get_transcript(model_size: str, path2audio: Path) -> Result:
     """Get the transcript for an audio file from a model."""
     # check if trainscript available
-    ext = Path(path2audio).suffix
-    p2f = path2audio.replace(ext, f"_{model_size}.json")
-    if Path(p2f).exists():
-        with Path(p2f).open("r") as f:
+    p2f = path2audio.with_name(f"{path2audio.stem}_{model_size}.json")
+    if p2f.exists():
+        with p2f.open("r") as f:
             result = json.load(f)
         return Result(**result)
 
@@ -171,12 +170,12 @@ def get_transcript(model_size: str, path2audio: str) -> Result:
 
     logger.debug("transcribe ...")
     st = time.time()
-    result = model.transcribe(path2audio)
+    result = model.transcribe(str(path2audio))
     el = time.time() - st
     logger.debug("elapsed time: %s", str(datetime.timedelta(seconds=el)))
 
     # store transcript
-    with Path(p2f).open("w") as f:
+    with p2f.open("w") as f:
         json.dump(result, f)
 
     return Result(**result)
@@ -187,14 +186,13 @@ def get_overlap(a: tuple[float, float], b: tuple[float, float]) -> float:
     return max(0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
-def audio2wav(p2audio: str) -> str:
+def audio2wav(p2audio: Path) -> Path:
     """Convert an audio file to wav."""
-    if ".wav" in p2audio:
+    if p2audio.suffix == ".wav":
         logger.debug("audio is in wav format!")
         return p2audio
-    ext = Path(p2audio).suffix
-    p2wav = p2audio.replace(ext, ".wav")
-    if Path(p2wav).exists():
+    p2wav = p2audio.with_name(f"{p2audio.stem}.wav")
+    if p2wav.exists():
         logger.debug("%s exists!", p2audio)
         return p2wav
 
@@ -208,20 +206,18 @@ def audio2wav(p2audio: str) -> str:
     return p2wav
 
 
-def get_diarization(p2audio: str, use_auth_token: str) -> Annotation:
+def get_diarization(p2audio: Path, use_auth_token: str) -> Annotation:
     """Get the diarization from the audio file."""
-    p2audio = str(p2audio)
-    ext = Path(p2audio).suffix
-    p2s = p2audio.replace(ext, "_diar.json")
-    p2p = p2audio.replace(ext, "_diar.pkl")
-    if Path(p2p).exists():
+    p2s = p2audio.with_name(f"{p2audio.stem}_diar.json")
+    p2p = p2audio.with_name(f"{p2audio.stem}_diar.pkl")
+    if p2p.exists():
         logger.debug("loading %s", p2p)
-        with Path(p2p).open("rb") as handle:
+        with p2p.open("rb") as handle:
             diarization = pickle.load(handle)  # noqa: S301
 
         speaker_dict: dict[str, str] = {}
         segments_dict = get_segments(diarization, speaker_dict)
-        with Path(p2s).open("w") as f:
+        with p2s.open("w") as f:
             json.dump(segments_dict, f)
             logger.debug("dumped diarization to %s", p2s)
 
@@ -237,12 +233,12 @@ def get_diarization(p2audio: str, use_auth_token: str) -> Annotation:
         diarization = pipeline(p2audio)
 
         # save diarization
-        with Path(p2s).open("wb") as handle:
+        with p2s.open("wb") as handle:
             pickle.dump(diarization, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         speaker_dict = {}
         segments_dict = get_segments(diarization, speaker_dict)
-        with Path(p2s).open("w") as f:
+        with p2s.open("w") as f:
             json.dump(segments_dict, f)
             logger.debug("dumped diarization to %s", p2s)
 
@@ -296,9 +292,9 @@ def get_world_cloud(
     return figs
 
 
-def get_audio_format(p2a: str) -> str:
+def get_audio_format(p2a: Path) -> str:
     """Given a path to an audio file, return the file format."""
-    with Path(p2a).open("rb") as f:
+    with p2a.open("rb") as f:
         audio_data = f.read()
     audio_format = magic.from_buffer(audio_data, mime=True)
     logger.debug("The audio file is in the format %s.", audio_format)

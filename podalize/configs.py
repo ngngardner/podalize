@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-path2audios = str(Path("./data"))
-path2logs = str(Path("./data/logs"))
-Path(path2audios).mkdir(exist_ok=True)
-Path(path2logs).mkdir(exist_ok=True)
+audio_path = Path("~/.podalize").expanduser()
+log_path = audio_path / "logs"
+audio_path.mkdir(exist_ok=True)
+log_path.mkdir(exist_ok=True)
 
 # printing verbose
 verbose = False

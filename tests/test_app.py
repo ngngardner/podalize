@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from pyannote.core.annotation import Annotation
 
 
-def test_diarization(sample_audio_two_speakers: str) -> None:
+def test_diarization(sample_audio_two_speakers: Path) -> None:
     """Test diarization on a sample audio file."""
     diarization: Annotation = get_diarization(sample_audio_two_speakers, use_auth_token)
     assert diarization.uri == "sample_audio_two_speakers"
@@ -33,7 +33,7 @@ def test_diarization(sample_audio_two_speakers: str) -> None:
 
 
 def test_get_transcript(
-    sample_audio_two_speakers: str,
+    sample_audio_two_speakers: Path,
     two_speakers_raw_transcript: str,
 ) -> None:
     """Test transcript generation on a sample audio file."""
@@ -44,7 +44,7 @@ def test_get_transcript(
     assert raw_transcript.text == two_speakers_raw_transcript
 
 
-def test_handle_speakers(sample_audio_two_speakers: str) -> None:
+def test_handle_speakers(sample_audio_two_speakers: Path) -> None:
     """Test speaker handling on a sample audio file."""
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
     speakers = handle_speakers(diarization, labels, y, sr)
@@ -52,7 +52,7 @@ def test_handle_speakers(sample_audio_two_speakers: str) -> None:
 
 
 def test_transcript(
-    sample_audio_two_speakers: str,
+    sample_audio_two_speakers: Path,
     two_speakers_transcript: str,
 ) -> None:
     """Test transcript merging on a sample audio file."""
@@ -74,7 +74,7 @@ def test_transcript(
 
 
 @pytest.mark.skip(reason="broken")
-def test_word_cloud(sample_audio_two_speakers: str) -> None:
+def test_word_cloud(sample_audio_two_speakers: Path) -> None:
     """Test world cloud generation on a sample audio file."""
     result = get_transcript(model_size="tiny", path2audio=sample_audio_two_speakers)
     word_cloud = get_world_cloud(
@@ -85,9 +85,9 @@ def test_word_cloud(sample_audio_two_speakers: str) -> None:
 
 
 @pytest.mark.skip(reason="requires pdflatex")
-def test_handle_document(sample_audio_two_speakers: str) -> None:
+def test_handle_document(sample_audio_two_speakers: Path) -> None:
     """Test handle document generation on a sample audio file."""
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
     speakers_dict = handle_speakers(diarization, labels, y, sr)
-    pod_name = Path(sample_audio_two_speakers).name
+    pod_name = sample_audio_two_speakers.name
     handle_document("placeholder transcript", pod_name, speakers_dict)

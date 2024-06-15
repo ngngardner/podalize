@@ -19,7 +19,7 @@ pydub = "0.25.1"
 pylatex = "1.4.1"
 python-magic = "0.4.27"
 pytube = "12.1.0"
-streamlit = {extras = ["testing"], version = "^1.35.0"}
+streamlit = { extras = ["testing"], version = "^1.35.0" }
 torchaudio = "^2.3.1"
 openai-whisper = "20231117"
 yt-dlp = "^2024.5.27"
@@ -37,7 +37,7 @@ mypy = "^1.10.0"
 
 [tool.poe.tasks]
 _ruff_lint = "ruff check ."
-_mypy_lint = "mypy podalize"
+_mypy_lint = "mypy ."
 lint = ["_mypy_lint", "_ruff_lint"]
 format = "ruff check --fix ."
 test = "pytest"

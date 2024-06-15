@@ -20,21 +20,21 @@ from podalize.logger import get_logger
 logger = get_logger(__name__)
 
 
-def get_file_audio(uploaded_file: UploadedFile) -> str:
+def get_file_audio(uploaded_file: UploadedFile) -> Path:
     """Download an uploaded file to a destination folder."""
-    p2audio = Path(configs.path2audios) / uploaded_file.name
-    if not Path(p2audio).exists():
-        with Path(p2audio).open("wb") as f:
+    p2audio = configs.audio_path / str(uploaded_file.name)
+    if not p2audio.exists():
+        with p2audio.open("wb") as f:
             f.write(uploaded_file.getvalue())
-    return str(p2audio)
+    return p2audio
 
 
-def get_youtube_audio(youtube_url: str) -> str:
+def get_youtube_audio(youtube_url: str) -> Path:
     """Download a youtube video to a destination folder."""
     if "youtube.com" in youtube_url:
-        p2audio = utils.youtube_downloader(youtube_url, configs.path2audios)
+        p2audio = utils.youtube_downloader(youtube_url, configs.audio_path)
     else:
-        path2out = str(Path(configs.path2audios) / "audio.unknown")
+        path2out = configs.audio_path / "audio.unknown"
         youtube_dl_path = shutil.which("youtube-dl")
         if not youtube_dl_path:
             msg = "youtube-dl not found in PATH"
@@ -44,13 +44,12 @@ def get_youtube_audio(youtube_url: str) -> str:
             check=False,
         )
         p2audio = utils.audio2wav(path2out)
-        Path(path2out).unlink()
-    return str(p2audio)
+        path2out.unlink()
+    return p2audio
 
 
-def process_audio(p2audio: str) -> tuple[Annotation, list[str], torch.Tensor, int]:
+def process_audio(p2audio: Path) -> tuple[Annotation, list[str], torch.Tensor, int]:
     """Process the audio file and create diarization and labels."""
-    p2audio = str(p2audio)
     diarization = utils.get_diarization(p2audio, configs.use_auth_token)
     p2audio = utils.audio2wav(p2audio)
     labels = diarization.labels()
@@ -73,18 +72,18 @@ def handle_speakers(
         s, e, _ = utils.get_largest_duration(diarization, sp)
         s1 = int(s * sr)
         e1 = int(e * sr)
-        path2sp = f"{configs.path2audios}/{sp}.wav"
+        path2sp = f"{configs.audio_path}/{sp}.wav"
         waveform = y[:, s1:e1]
         torchaudio.save(path2sp, waveform, sr)
         st.audio(path2sp, format="audio/wav", start_time=0)
     return speakers_dict
 
 
-def handle_segments(p2audio: str) -> dict[tuple[float, float], str]:
+def handle_segments(p2audio: Path) -> dict[tuple[float, float], str]:
     """Create the segments dictionary."""
-    p2s = utils.audio2wav(p2audio).replace(".wav", "_diar.json")
+    p2s = p2audio.with_name(f"{p2audio.stem}_diar.json")
     try:
-        with Path(p2s).open("rb") as f:
+        with p2s.open("rb") as f:
             segments = json.load(f)
     except UnicodeDecodeError:
         logger.debug(p2s)
@@ -120,7 +119,7 @@ def generate_figs(
         startangle=90,
     )
     ax1.axis("equal")
-    fig1.savefig(f"{configs.path2logs}/spoken_time.png")
+    fig1.savefig(f"{configs.log_path}/spoken_time.png")
     st.pyplot(fig1)
 
 
@@ -130,18 +129,17 @@ def handle_document(
     speakers_dict: dict[str, str],
 ) -> None:
     """Create a .pdf document for download based on the generated transcript."""
-    spoken_fig = Path(configs.path2logs).glob("spoken*.png")
-    all_figs = Path(configs.path2logs).glob("$*.png")
+    spoken_fig = configs.log_path.glob("spoken*.png")
+    all_figs = configs.log_path.glob("$*.png")
     wc_figs = [
         f for f in all_figs if [v for v in speakers_dict.values() if v in str(f)]
     ]
 
-    args = {
-        "title": pod_name,
-        "author": "Created by Podalize",
-        "path2logs": configs.path2logs,
-    }
-    rg = DocumentGenerator(**args)
+    rg = DocumentGenerator(
+        title=pod_name,
+        author="Created by Podalize",
+        path2logs=configs.log_path,
+    )
 
     for f in spoken_fig:
         rg.add_image(str(f), caption="Percentage of spoken time per speaker")
@@ -154,7 +152,7 @@ def handle_document(
     output = transcript[3:]
     rg.add_section("Transcript", output)
     logger.debug("number of figures: %s", rg.fig_count)
-    path2pdf = f"{configs.path2logs}/podalize_{pod_name}"
+    path2pdf = f"{configs.log_path}/podalize_{pod_name}"
     rg.doc.generate_pdf(path2pdf, clean_tex=False)
     logger.debug("podalized!")
 
@@ -199,7 +197,7 @@ def app() -> None:
 
         generate_figs(speakers_dict, spoken_time_secs)
 
-        pod_name = st.text_input("Enter Podcast Name", value=Path(p2audio).name)
+        pod_name = st.text_input("Enter Podcast Name", value=p2audio.name)
         st.download_button("Download transcript", transcript[3:])
         if st.button("Download"):
             handle_document(transcript, pod_name, speakers_dict)
