@@ -41,7 +41,7 @@ def test_get_transcript(
         model_size="tiny",
         path2audio=audio2wav(sample_audio_two_speakers),
     )
-    assert raw_transcript["text"] == two_speakers_raw_transcript
+    assert raw_transcript.text == two_speakers_raw_transcript
 
 
 def test_handle_speakers(sample_audio_two_speakers: str) -> None:

@@ -14,7 +14,7 @@ from pyannote.core.annotation import Annotation
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from podalize import configs, utils
-from podalize.DocumentGenerator import DocumentGenerator
+from podalize.document_generator import DocumentGenerator
 from podalize.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,8 +34,11 @@ def get_youtube_audio(youtube_url: str) -> str:
     if "youtube.com" in youtube_url:
         p2audio = utils.youtube_downloader(youtube_url, configs.path2audios)
     else:
-        path2out = str(Path(configs.path2audios / "audio.unknown"))
+        path2out = str(Path(configs.path2audios) / "audio.unknown")
         youtube_dl_path = shutil.which("youtube-dl")
+        if not youtube_dl_path:
+            msg = "youtube-dl not found in PATH"
+            raise RuntimeError(msg)
         subprocess.run(
             [youtube_dl_path, youtube_url, f"-o{path2out}"],  # noqa: S603
             check=False,
@@ -45,7 +48,7 @@ def get_youtube_audio(youtube_url: str) -> str:
     return str(p2audio)
 
 
-def process_audio(p2audio: str) -> (Annotation, dict, torch.Tensor, int):
+def process_audio(p2audio: str) -> tuple[Annotation, list[str], torch.Tensor, int]:
     """Process the audio file and create diarization and labels."""
     p2audio = str(p2audio)
     diarization = utils.get_diarization(p2audio, configs.use_auth_token)
@@ -59,15 +62,15 @@ def process_audio(p2audio: str) -> (Annotation, dict, torch.Tensor, int):
 
 def handle_speakers(
     diarization: Annotation,
-    labels: dict,
+    labels: list[str],
     y: torch.Tensor,
     sr: int,
-) -> dict:
+) -> dict[str, str]:
     """Create the speakers dictionary based on the diarization."""
     speakers_dict = {}
     for ii, sp in enumerate(labels):
         speakers_dict[sp] = st.text_input(f"Speaker_{ii}", sp)
-        s, e, _ = utils.get_larget_duration(diarization, sp)
+        s, e, _ = utils.get_largest_duration(diarization, sp)
         s1 = int(s * sr)
         e1 = int(e * sr)
         path2sp = f"{configs.path2audios}/{sp}.wav"
@@ -77,11 +80,16 @@ def handle_speakers(
     return speakers_dict
 
 
-def handle_segments(p2audio: str) -> dict:
+def handle_segments(p2audio: str) -> dict[tuple[float, float], str]:
     """Create the segments dictionary."""
-    p2s = p2audio.replace(".wav", "_diar.json")
-    with Path(p2s).open() as f:
-        segments = json.load(f)
+    p2s = utils.audio2wav(p2audio).replace(".wav", "_diar.json")
+    try:
+        with Path(p2s).open("rb") as f:
+            segments = json.load(f)
+    except UnicodeDecodeError:
+        logger.debug(p2s)
+        logger.exception("Failed to decode diarization json file.")
+        raise
 
     segments_dict = {}
     for key, v in segments.items():
@@ -90,7 +98,10 @@ def handle_segments(p2audio: str) -> dict:
     return segments_dict
 
 
-def generate_figs(speakers_dict: dict, spoken_time_secs: dict) -> None:
+def generate_figs(
+    speakers_dict: dict[str, str],
+    spoken_time_secs: dict[str, float],
+) -> None:
     """Generate figures for spoken time."""
     st.header("Analyze")
     st.subheader("Spoken Time")
@@ -113,11 +124,17 @@ def generate_figs(speakers_dict: dict, spoken_time_secs: dict) -> None:
     st.pyplot(fig1)
 
 
-def handle_document(transcript: str, pod_name: str, speakers_dict: dict) -> None:
+def handle_document(
+    transcript: str,
+    pod_name: str,
+    speakers_dict: dict[str, str],
+) -> None:
     """Create a .pdf document for download based on the generated transcript."""
     spoken_fig = Path(configs.path2logs).glob("spoken*.png")
     all_figs = Path(configs.path2logs).glob("$*.png")
-    wc_figs = [f for f in all_figs if [v for v in speakers_dict.values() if v in f]]
+    wc_figs = [
+        f for f in all_figs if [v for v in speakers_dict.values() if v in str(f)]
+    ]
 
     args = {
         "title": pod_name,
@@ -127,11 +144,11 @@ def handle_document(transcript: str, pod_name: str, speakers_dict: dict) -> None
     rg = DocumentGenerator(**args)
 
     for f in spoken_fig:
-        rg.add_image(f, caption="Percentage of spoken time per speaker")
+        rg.add_image(str(f), caption="Percentage of spoken time per speaker")
         rg.add_new_page()
 
     for f in wc_figs:
-        rg.add_image(f, caption="Word cloud per speaker")
+        rg.add_image(str(f), caption="Word cloud per speaker")
         rg.add_new_page()
 
     output = transcript[3:]
@@ -150,7 +167,6 @@ def app() -> None:
     st.title("Podalize: podcast transcription and analysis")
     uploaded_file = st.file_uploader("Choose an audio", type=["mp3", "wav"])
     youtube_url = st.text_input("Youtube/Podcast URL")
-
     if uploaded_file or youtube_url:
         st.spinner(text="In progress...")
         if uploaded_file:
@@ -163,7 +179,10 @@ def app() -> None:
             speakers_dict = handle_speakers(diarization, labels, y, sr)
         model_sizes = ["tiny", "small", "base", "medium", "large"]
         model_size = st.selectbox("Select Model Size", model_sizes, index=3)
-        result = utils.get_transcript(model_size=model_size, path2audio=p2audio)
+        result = utils.get_transcript(
+            model_size=model_size or "base",
+            path2audio=p2audio,
+        )
 
         segements_dict = handle_segments(p2audio)
         transcript = utils.merge_tran_diar(result, segements_dict, speakers_dict)
@@ -183,4 +202,4 @@ def app() -> None:
         pod_name = st.text_input("Enter Podcast Name", value=Path(p2audio).name)
         st.download_button("Download transcript", transcript[3:])
         if st.button("Download"):
-            handle_document(pod_name, speakers_dict)
+            handle_document(transcript, pod_name, speakers_dict)

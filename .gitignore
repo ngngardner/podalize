@@ -9,6 +9,7 @@
 tests/artifacts/**
 !tests/artifacts/__init__.py
 !tests/artifacts/sample_audio_two_speakers.wav
+!tests/artifacts/sample_audio_two_speakers.mp3
 
 
 .vscode
