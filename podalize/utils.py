@@ -64,9 +64,7 @@ def youtube_downloader(url: str, destination: Path) -> Path:
     """Download a youtube video to a destination folder."""
     path2mp3 = destination / f"audio_{uuid.uuid4()}.mp3"
     os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")  # noqa: S605
-
-    ident = hash_audio_file(path2mp3)
-    out_path = destination / f"audio_{ident}.mp3"
+    out_path = destination / "audio.mp3"
     shutil.move(path2mp3, out_path)
     return out_path
 

@@ -7,8 +7,8 @@ from podalize.logger import get_logger
 
 logger = get_logger(__name__)
 
-temp_path: Path | str | None = os.environ.get("PODALIZE_PATH", None)
-if temp_path is None or not Path(temp_path).exists():
+temp: Path | str | None = os.environ.get("PODALIZE_PATH", None)
+if temp is None or not Path(temp).exists():
     podalize_path = Path("~/.podalize").expanduser()
     logger.warning(
         "PODALIZE_PATH variable not found or corrupt. Creating %s",
@@ -16,7 +16,7 @@ if temp_path is None or not Path(temp_path).exists():
     )
     podalize_path.mkdir(exist_ok=True)
 else:
-    podalize_path = Path(temp_path)
+    podalize_path = Path(temp)
 log_path = podalize_path / "logs"
 tmp_path = podalize_path / "tmp"
 log_path.mkdir(exist_ok=True)

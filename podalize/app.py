@@ -41,9 +41,9 @@ def get_file_audio(uploaded_file: UploadedFile) -> Path:
 def get_youtube_audio(youtube_url: str) -> Path:
     """Download a youtube video to a destination folder."""
     if "youtube.com" in youtube_url:
-        p2audio = utils.youtube_downloader(youtube_url, configs.podalize_path)
+        p2audio = utils.youtube_downloader(youtube_url, configs.tmp_path)
     else:
-        path2out = configs.podalize_path / "audio.unknown"
+        path2out = configs.tmp_path / "audio.unknown"
         youtube_dl_path = shutil.which("youtube-dl")
         if not youtube_dl_path:
             msg = "youtube-dl not found in PATH"
