@@ -28,10 +28,10 @@ class DocumentGenerator:
         self: DocumentGenerator,
         title: str,
         author: str,
-        path2logs: Path,
+        log_path: Path,
     ) -> None:
         """Initialize the Document Generator class."""
-        self.path2logs = path2logs
+        self.log_path = log_path
         self.fig_count = 0
         self.doc = Document()
         self.doc.preamble.append(Command("title", title))

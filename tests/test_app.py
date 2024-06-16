@@ -13,7 +13,7 @@ from podalize.app import (
 )
 from podalize.configs import use_auth_token
 from podalize.utils import (
-    audio2wav,
+    convert_wav,
     get_diarization,
     get_spoken_time,
     get_transcript,
@@ -39,7 +39,7 @@ def test_get_transcript(
     """Test transcript generation on a sample audio file."""
     raw_transcript = get_transcript(
         model_size="tiny",
-        path2audio=audio2wav(sample_audio_two_speakers),
+        audio_path=convert_wav(sample_audio_two_speakers),
     )
     assert raw_transcript.text == two_speakers_raw_transcript
 
@@ -58,7 +58,7 @@ def test_transcript(
     """Test transcript merging on a sample audio file."""
     raw_transcript_json = get_transcript(
         model_size="tiny",
-        path2audio=sample_audio_two_speakers,
+        audio_path=sample_audio_two_speakers,
     )
 
     diarization, labels, y, sr = process_audio(sample_audio_two_speakers)
@@ -82,7 +82,7 @@ def test_transcript(
 @pytest.mark.skip(reason="broken")
 def test_word_cloud(sample_audio_two_speakers: Path) -> None:
     """Test world cloud generation on a sample audio file."""
-    result = get_transcript(model_size="tiny", path2audio=sample_audio_two_speakers)
+    result = get_transcript(model_size="tiny", audio_path=sample_audio_two_speakers)
     word_cloud = get_world_cloud(
         result,
         {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"},

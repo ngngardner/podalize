@@ -62,10 +62,10 @@ def hash_audio_file(file_path: Path, chunk_size: int = 8192) -> str:
 
 def youtube_downloader(url: str, destination: Path) -> Path:
     """Download a youtube video to a destination folder."""
-    path2mp3 = destination / f"audio_{uuid.uuid4()}.mp3"
-    os.system(f"yt-dlp -x --audio-format mp3 -o {path2mp3} {url}")  # noqa: S605
+    mp3_path = destination / f"audio_{uuid.uuid4()}.mp3"
+    os.system(f"yt-dlp -x --audio-format mp3 -o {mp3_path} {url}")  # noqa: S605
     out_path = destination / "audio.mp3"
-    shutil.move(path2mp3, out_path)
+    shutil.move(mp3_path, out_path)
     return out_path
 
 
@@ -155,12 +155,12 @@ def get_largest_duration(
     return s, e, maxsofar
 
 
-def get_transcript(model_size: str, path2audio: Path) -> Result:
+def get_transcript(model_size: str, audio_path: Path) -> Result:
     """Get the transcript for an audio file from a model."""
     # check if trainscript available
-    p2f = path2audio.with_name(f"{path2audio.stem}_{model_size}.json")
-    if p2f.exists():
-        with p2f.open("r") as f:
+    result_path = audio_path.with_name(f"{audio_path.stem}_{model_size}.json")
+    if result_path.exists():
+        with result_path.open("r") as f:
             result = json.load(f)
         return Result(**result)
 
@@ -169,12 +169,12 @@ def get_transcript(model_size: str, path2audio: Path) -> Result:
 
     logger.debug("transcribe ...")
     st = time.time()
-    result = model.transcribe(str(path2audio))
+    result = model.transcribe(str(audio_path))
     el = time.time() - st
     logger.debug("elapsed time: %s", str(datetime.timedelta(seconds=el)))
 
     # store transcript
-    with p2f.open("w") as f:
+    with result_path.open("w") as f:
         json.dump(result, f)
 
     return Result(**result)
@@ -185,59 +185,51 @@ def get_overlap(a: tuple[float, float], b: tuple[float, float]) -> float:
     return max(0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
-def audio2wav(p2audio: Path) -> Path:
+def convert_wav(audio_path: Path) -> Path:
     """Convert an audio file to wav."""
-    if p2audio.suffix == ".wav":
+    if audio_path.suffix == ".wav":
         logger.debug("audio is in wav format!")
-        return p2audio
-    p2wav = p2audio.with_name(f"{p2audio.stem}.wav")
-    if p2wav.exists():
-        logger.debug("%s exists!", p2audio)
-        return p2wav
+        return audio_path
+    wav_path = audio_path.with_name(f"{audio_path.stem}.wav")
+    if wav_path.exists():
+        logger.debug("%s exists!", audio_path)
+        return wav_path
 
-    logger.debug("loading %s", p2audio)
-    sound = AudioSegment.from_file(p2audio)
+    logger.debug("loading %s", audio_path)
+    sound = AudioSegment.from_file(audio_path)
 
-    logger.debug("exporting to % s", p2wav)
-    sound.export(p2wav, format="wav")
-    return p2wav
+    logger.debug("exporting to % s", wav_path)
+    sound.export(wav_path, format="wav")
+    return wav_path
 
 
-def get_diarization(p2audio: Path, use_auth_token: str) -> Annotation:
+def get_diarization(audio_path: Path, use_auth_token: str) -> Annotation:
     """Get the diarization from the audio file."""
-    p2s = p2audio.with_name(f"{p2audio.stem}_diar.json")
-    p2p = p2audio.with_name(f"{p2audio.stem}_diar.pkl")
-    if p2p.exists():
-        logger.debug("loading %s", p2p)
-        with p2p.open("rb") as handle:
+    diarization_pkl = audio_path.with_name(f"{audio_path.stem}_diar.pkl")
+    if diarization_pkl.exists():
+        logger.debug("loading %s", diarization_pkl)
+        with diarization_pkl.open("rb") as handle:
             diarization = pickle.load(handle)  # noqa: S301
-
-        speaker_dict: dict[str, str] = {}
-        segments_dict = get_segments(diarization, speaker_dict)
-        with p2s.open("w") as f:
-            json.dump(segments_dict, f)
-            logger.debug("dumped diarization to %s", p2s)
-
     else:
-        p2audio = audio2wav(p2audio)
+        audio_path = convert_wav(audio_path)
         logger.debug("loading model ...")
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
             use_auth_token=use_auth_token,
         )
-
         logger.debug("diarization ...")
-        diarization = pipeline(p2audio)
+        diarization = pipeline(audio_path)
 
         # save diarization
-        with p2s.open("wb") as handle:
+        with diarization_pkl.open("wb") as handle:
             pickle.dump(diarization, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        speaker_dict = {}
-        segments_dict = get_segments(diarization, speaker_dict)
-        with p2s.open("w") as f:
-            json.dump(segments_dict, f)
-            logger.debug("dumped diarization to %s", p2s)
+    segments_json = audio_path.with_name(f"{audio_path.stem}_diar.json")
+    speaker_dict: dict[str, str] = {}
+    segments_dict = get_segments(diarization, speaker_dict)
+    with segments_json.open("w") as f:
+        json.dump(segments_dict, f)
+        logger.debug("dumped diarization to %s", segments_json)
 
     return diarization
 
@@ -261,7 +253,7 @@ def get_spoken_time(
 def get_world_cloud(
     result: Result,
     speakers_dict: dict[str, str],
-    path2figs: str = "./data/logs",
+    figs_path: str = "./data/logs",
 ) -> list[str]:
     """Generate a wordcloud figure for each speaker."""
     figs: list[str] = []
@@ -283,15 +275,15 @@ def get_world_cloud(
         plt.axis("off")
         st.pyplot(fig)
 
-        p2f = f"{path2figs}/{speakers_dict[sp]}.png"
-        figs.append(p2f)
-        plt.savefig(p2f)
+        fig_path = f"{figs_path}/{speakers_dict[sp]}.png"
+        figs.append(fig_path)
+        plt.savefig(fig_path)
     return figs
 
 
-def get_audio_format(p2a: Path) -> str:
+def get_audio_format(audio_path: Path) -> str:
     """Given a path to an audio file, return the file format."""
-    with p2a.open("rb") as f:
+    with audio_path.open("rb") as f:
         audio_data = f.read()
     audio_format = magic.from_buffer(audio_data, mime=True)
     logger.debug("The audio file is in the format %s.", audio_format)
