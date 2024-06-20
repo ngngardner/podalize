@@ -71,7 +71,7 @@ def youtube_downloader(url: str, destination: Path) -> Path:
         time.sleep(1)
         os.system(command)  # noqa: S605
         retry_count += 1
-        if retry_count > 3:
+        if retry_count > 3:  # noqa: PLR2004
             msg = "Failed to download youtube video"
             raise RuntimeError(msg)
 
