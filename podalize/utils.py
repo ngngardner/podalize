@@ -63,7 +63,18 @@ def hash_audio_file(file_path: Path, chunk_size: int = 8192) -> str:
 def youtube_downloader(url: str, destination: Path) -> Path:
     """Download a youtube video to a destination folder."""
     mp3_path = destination / f"audio_{uuid.uuid4()}.mp3"
-    os.system(f"yt-dlp -x --audio-format mp3 -o {mp3_path} {url}")  # noqa: S605
+    command = f"yt-dlp -x --audio-format mp3 -o {mp3_path} {url}"
+    os.system(command)  # noqa: S605
+    retry_count = 0
+    while not mp3_path.exists():
+        # retry
+        time.sleep(1)
+        os.system(command)  # noqa: S605
+        retry_count += 1
+        if retry_count > 3:
+            msg = "Failed to download youtube video"
+            raise RuntimeError(msg)
+
     out_path = destination / "audio.mp3"
     shutil.move(mp3_path, out_path)
     return out_path
