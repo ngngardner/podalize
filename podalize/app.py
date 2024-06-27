@@ -4,7 +4,6 @@ import datetime
 import json
 import shutil
 import subprocess
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -16,32 +15,39 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 from podalize import configs, utils
 from podalize.document_generator import DocumentGenerator
 from podalize.logger import get_logger
+from podalize.models import Record
 
 logger = get_logger(__name__)
 
 
-def audio_fingerprint_dir(audio_path: Path) -> Path:
+def audio_fingerprint_dir(audio_record: Record) -> Record:
     """Create the fingerprint dir for a given audio file."""
-    fingerprint = utils.hash_audio_file(audio_path)
+    fingerprint = utils.hash_audio_file(audio_record)
     dest = configs.podalize_path / fingerprint
     dest.mkdir(parents=True, exist_ok=True)
-    shutil.move(audio_path, dest / audio_path.name)
-    return dest / audio_path.name
+    shutil.move(audio_record.audio_path, dest / audio_record.audio_path.name)
+
+    audio_record.file_dir = dest
+    audio_record.audio_path = dest / audio_record.audio_path.name
+    return audio_record
 
 
-def get_file_audio(uploaded_file: UploadedFile) -> Path:
+def get_file_audio(uploaded_file: UploadedFile) -> Record:
     """Download an uploaded file to a destination folder."""
-    audio_path = configs.tmp_path / str(uploaded_file.name)
-    if not audio_path.exists():
-        with audio_path.open("wb") as f:
+    audio_record = Record(
+        audio_path=configs.tmp_path / str(uploaded_file.name),
+        file_dir=configs.tmp_path,
+    )
+    if not audio_record.audio_path.exists():
+        with audio_record.audio_path.open("wb") as f:
             f.write(uploaded_file.getvalue())
-    return audio_fingerprint_dir(audio_path)
+    return audio_fingerprint_dir(audio_record)
 
 
-def get_youtube_audio(youtube_url: str) -> Path:
+def get_youtube_audio(youtube_url: str) -> Record:
     """Download a youtube video to a destination folder."""
     if "youtube.com" in youtube_url:
-        audio_path = utils.youtube_downloader(youtube_url, configs.tmp_path)
+        audio_record = utils.youtube_downloader(youtube_url, configs.tmp_path)
     else:
         tmp_path = configs.tmp_path / "audio.unknown"
         youtube_dl_path = shutil.which("youtube-dl")
@@ -52,24 +58,28 @@ def get_youtube_audio(youtube_url: str) -> Path:
             [youtube_dl_path, youtube_url, f"-o{tmp_path}"],  # noqa: S603
             check=False,
         )
-        audio_path = utils.convert_wav(tmp_path)
+        audio_record = utils.convert_wav(
+            Record(audio_path=tmp_path, file_dir=configs.tmp_path),
+        )
         tmp_path.unlink()
-    return audio_fingerprint_dir(audio_path)
+    return audio_fingerprint_dir(audio_record)
 
 
-def process_audio(audio_path: Path) -> tuple[Annotation, list[str], torch.Tensor, int]:
+def process_audio(
+    audio_record: Record,
+) -> tuple[Annotation, list[str], torch.Tensor, int]:
     """Process the audio file and create diarization and labels."""
-    diarization = utils.get_diarization(audio_path, configs.use_auth_token)
-    audio_path = utils.convert_wav(audio_path)
+    diarization = utils.get_diarization(audio_record, configs.use_auth_token)
+    audio_record = utils.convert_wav(audio_record)
     labels = diarization.labels()
     logger.debug("speakers: %s", labels)
-    y, sr = torchaudio.load(audio_path)
+    y, sr = torchaudio.load(audio_record.audio_path)
     logger.debug("audio shape: %s, sample rate: %s", y.shape, sr)
     return diarization, labels, y, sr
 
 
 def handle_speakers(
-    audio_path: Path,
+    audio_record: Record,
     diarization: Annotation,
     labels: list[str],
     y: torch.Tensor,
@@ -82,21 +92,24 @@ def handle_speakers(
         s, e, _ = utils.get_largest_duration(diarization, sp)
         s1 = int(s * sr)
         e1 = int(e * sr)
-        speaker_sample_path = audio_path.parent / f"{sp}.wav"
+        speaker_sample_path = audio_record.audio_path.parent / f"{sp}.wav"
         waveform = y[:, s1:e1]
         torchaudio.save(speaker_sample_path, waveform, sr)
         st.audio(str(speaker_sample_path), format="audio/wav", start_time=0)
     return speakers_dict
 
 
-def handle_segments(audio_path: Path) -> dict[tuple[float, float], str]:
+def handle_segments(audio_record: Record) -> dict[tuple[float, float], str]:
     """Create the segments dictionary."""
-    segments_path = audio_path.with_name(f"{audio_path.stem}_diar.json")
+    if not audio_record.diar_json:
+        audio_record.diar_json = audio_record.audio_path.with_name(
+            f"{audio_record.audio_path.stem}_diar.json",
+        )
     try:
-        with segments_path.open("rb") as f:
+        with audio_record.diar_json.open("rb") as f:
             segments = json.load(f)
     except UnicodeDecodeError:
-        logger.debug(segments_path)
+        logger.debug(audio_record.diar_json)
         logger.exception("Failed to decode diarization json file.")
         raise
 
@@ -108,7 +121,7 @@ def handle_segments(audio_path: Path) -> dict[tuple[float, float], str]:
 
 
 def generate_figs(
-    audio_path: Path,
+    audio_record: Record,
     speakers_dict: dict[str, str],
     spoken_time_secs: dict[str, float],
 ) -> None:
@@ -130,7 +143,7 @@ def generate_figs(
         startangle=90,
     )
     ax1.axis("equal")
-    fig1.savefig(audio_path.parent / "spoken_time.png")
+    fig1.savefig(audio_record.audio_path.parent / "spoken_time.png")
     st.pyplot(fig1)
 
 
@@ -179,21 +192,21 @@ def app() -> None:
     if uploaded_file or youtube_url:
         st.spinner(text="In progress...")
         if uploaded_file:
-            audio_path = get_file_audio(uploaded_file)
+            audio_record = get_file_audio(uploaded_file)
         if youtube_url:
-            audio_path = get_youtube_audio(youtube_url)
+            audio_record = get_youtube_audio(youtube_url)
 
-        diarization, labels, y, sr = process_audio(audio_path)
+        diarization, labels, y, sr = process_audio(audio_record)
         with st.sidebar:
-            speakers_dict = handle_speakers(audio_path, diarization, labels, y, sr)
+            speakers_dict = handle_speakers(audio_record, diarization, labels, y, sr)
         model_sizes = ["tiny", "small", "base", "medium", "large"]
         model_size = st.selectbox("Select Model Size", model_sizes, index=3)
         result = utils.get_transcript(
             model_size=model_size or "base",
-            audio_path=audio_path,
+            audio_record=audio_record,
         )
 
-        segements_dict = handle_segments(audio_path)
+        segements_dict = handle_segments(audio_record)
         transcript = utils.merge_tran_diar(result, segements_dict, speakers_dict)
         st.subheader("Transcript")
         st.text_area(
@@ -206,9 +219,12 @@ def app() -> None:
         speakers = list(speakers_dict.keys())
         spoken_time, spoken_time_secs = utils.get_spoken_time(result, speakers)
 
-        generate_figs(audio_path, speakers_dict, spoken_time_secs)
+        generate_figs(audio_record, speakers_dict, spoken_time_secs)
 
-        pod_name = st.text_input("Enter Podcast Name", value=audio_path.name)
+        pod_name = st.text_input(
+            "Enter Podcast Name",
+            value=audio_record.audio_path.name,
+        )
         st.download_button("Download transcript", transcript[3:])
         if st.button("Download"):
             handle_document(transcript, pod_name, speakers_dict)
