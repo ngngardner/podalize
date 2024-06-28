@@ -34,7 +34,9 @@ def sample_audio_two_speakers(request: SubRequest) -> Record:
     with resources.path("tests.artifacts", request.param) as path:
         dest: Path = podalize.configs.podalize_path / request.param
         shutil.copy(path, dest)
-    return audio_fingerprint_dir(Record(audio_path=dest, file_dir=dest.parent))
+    audio_record = Record(audio_path=dest, file_dir=dest.parent)
+    audio_fingerprint_dir(audio_record)
+    return audio_record
 
 
 @pytest.fixture()

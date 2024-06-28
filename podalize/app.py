@@ -12,15 +12,14 @@ import torchaudio
 from pyannote.core.annotation import Annotation
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from podalize import configs, utils
+from podalize import configs, models, utils
 from podalize.document_generator import DocumentGenerator
 from podalize.logger import get_logger
-from podalize.models import Record
 
 logger = get_logger(__name__)
 
 
-def audio_fingerprint_dir(audio_record: Record) -> Record:
+def audio_fingerprint_dir(audio_record: models.Record) -> None:
     """Create the fingerprint dir for a given audio file."""
     fingerprint = utils.hash_audio_file(audio_record)
     dest = configs.podalize_path / fingerprint
@@ -29,25 +28,25 @@ def audio_fingerprint_dir(audio_record: Record) -> Record:
 
     audio_record.file_dir = dest
     audio_record.audio_path = dest / audio_record.audio_path.name
-    return audio_record
 
 
-def get_file_audio(uploaded_file: UploadedFile) -> Record:
+def get_file_audio(uploaded_file: UploadedFile) -> models.Record:
     """Download an uploaded file to a destination folder."""
-    audio_record = Record(
+    audio_record = models.Record(
         audio_path=configs.tmp_path / str(uploaded_file.name),
         file_dir=configs.tmp_path,
     )
     if not audio_record.audio_path.exists():
         with audio_record.audio_path.open("wb") as f:
             f.write(uploaded_file.getvalue())
-    return audio_fingerprint_dir(audio_record)
+    audio_fingerprint_dir(audio_record)
+    return audio_record
 
 
-def get_youtube_audio(youtube_url: str) -> Record:
+def get_youtube_audio(youtube_url: str) -> models.YoutubeRecord:
     """Download a youtube video to a destination folder."""
     if "youtube.com" in youtube_url:
-        audio_record = utils.youtube_downloader(youtube_url, configs.tmp_path)
+        audio_record = utils.youtube_downloader(youtube_url)
     else:
         tmp_path = configs.tmp_path / "audio.unknown"
         youtube_dl_path = shutil.which("youtube-dl")
@@ -58,19 +57,24 @@ def get_youtube_audio(youtube_url: str) -> Record:
             [youtube_dl_path, youtube_url, f"-o{tmp_path}"],  # noqa: S603
             check=False,
         )
-        audio_record = utils.convert_wav(
-            Record(audio_path=tmp_path, file_dir=configs.tmp_path),
+        audio_record = models.YoutubeRecord(
+            video_url=youtube_url,
+            audio_path=tmp_path,
+            file_dir=configs.tmp_path,
         )
+        utils.convert_wav(audio_record)
         tmp_path.unlink()
-    return audio_fingerprint_dir(audio_record)
+    audio_fingerprint_dir(audio_record)
+    models.store_youtube_record(audio_record)
+    return audio_record
 
 
 def process_audio(
-    audio_record: Record,
+    audio_record: models.Record,
 ) -> tuple[Annotation, list[str], torch.Tensor, int]:
     """Process the audio file and create diarization and labels."""
     diarization = utils.get_diarization(audio_record, configs.use_auth_token)
-    audio_record = utils.convert_wav(audio_record)
+    utils.convert_wav(audio_record)
     labels = diarization.labels()
     logger.debug("speakers: %s", labels)
     y, sr = torchaudio.load(audio_record.audio_path)
@@ -79,7 +83,7 @@ def process_audio(
 
 
 def handle_speakers(
-    audio_record: Record,
+    audio_record: models.Record,
     diarization: Annotation,
     labels: list[str],
     y: torch.Tensor,
@@ -99,7 +103,7 @@ def handle_speakers(
     return speakers_dict
 
 
-def handle_segments(audio_record: Record) -> dict[tuple[float, float], str]:
+def handle_segments(audio_record: models.Record) -> dict[tuple[float, float], str]:
     """Create the segments dictionary."""
     if not audio_record.diar_json:
         audio_record.diar_json = audio_record.audio_path.with_name(
@@ -121,7 +125,7 @@ def handle_segments(audio_record: Record) -> dict[tuple[float, float], str]:
 
 
 def generate_figs(
-    audio_record: Record,
+    audio_record: models.Record,
     speakers_dict: dict[str, str],
     spoken_time_secs: dict[str, float],
 ) -> None:

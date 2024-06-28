@@ -13,7 +13,6 @@ from podalize.app import (
 from podalize.configs import use_auth_token
 from podalize.models import Record
 from podalize.utils import (
-    convert_wav,
     get_diarization,
     get_spoken_time,
     get_transcript,
@@ -39,7 +38,7 @@ def test_get_transcript(
     """Test transcript generation on a sample audio file."""
     raw_transcript = get_transcript(
         model_size="tiny",
-        audio_record=convert_wav(sample_audio_two_speakers),
+        audio_record=sample_audio_two_speakers,
     )
     assert raw_transcript.text == two_speakers_raw_transcript
 

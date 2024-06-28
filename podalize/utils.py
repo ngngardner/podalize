@@ -8,7 +8,6 @@ import pickle
 import shutil
 import time
 import uuid
-from pathlib import Path
 from textwrap import dedent
 
 import magic
@@ -21,8 +20,8 @@ from pydantic import BaseModel
 from pydub import AudioSegment
 from wordcloud import WordCloud
 
+from podalize import configs, models
 from podalize.logger import get_logger
-from podalize.models import Record
 
 logger = get_logger(__name__)
 
@@ -52,7 +51,7 @@ class Result(BaseModel):
     speakers: list[str] | None = None
 
 
-def hash_audio_file(audio_record: Record, chunk_size: int = 8192) -> str:
+def hash_audio_file(audio_record: models.Record, chunk_size: int = 8192) -> str:
     """Hash an audio file to create a unique reusable identifier."""
     hasher = hashlib.sha256()
     if audio_record.audio_path.exists():
@@ -63,9 +62,11 @@ def hash_audio_file(audio_record: Record, chunk_size: int = 8192) -> str:
     raise FileNotFoundError
 
 
-def youtube_downloader(url: str, destination: Path) -> Record:
+def youtube_downloader(url: str) -> models.YoutubeRecord:
     """Download a youtube video to a destination folder."""
-    mp3_path = destination / f"audio_{uuid.uuid4()}.mp3"
+    if audio_record := models.get_youtube_record(url):
+        return audio_record
+    mp3_path = configs.tmp_path / f"audio_{uuid.uuid4()}.mp3"
     command = f"yt-dlp -x --audio-format mp3 -o {mp3_path} {url}"
     os.system(command)  # noqa: S605
     retry_count = 0
@@ -78,9 +79,15 @@ def youtube_downloader(url: str, destination: Path) -> Record:
             msg = "Failed to download youtube video"
             raise RuntimeError(msg)
 
-    out_path = destination / "audio.mp3"
+    out_path = configs.tmp_path / "audio.mp3"
     shutil.move(mp3_path, out_path)
-    return Record(audio_path=out_path, file_dir=destination)
+    audio_record = models.YoutubeRecord(
+        video_url=url,
+        audio_path=out_path,
+        file_dir=configs.tmp_path,
+    )
+    models.store_youtube_record(audio_record)
+    return audio_record
 
 
 def merge_tran_diar(  # noqa: C901
@@ -169,7 +176,7 @@ def get_largest_duration(
     return s, e, maxsofar
 
 
-def get_transcript(model_size: str, audio_record: Record) -> Result:
+def get_transcript(model_size: str, audio_record: models.Record) -> Result:
     """Get the transcript for an audio file from a model."""
     # check if trainscript available
     audio_record.transcripts[model_size] = audio_record.audio_path.with_name(
@@ -201,26 +208,24 @@ def get_overlap(a: tuple[float, float], b: tuple[float, float]) -> float:
     return max(0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
-def convert_wav(audio_record: Record) -> Record:
+def convert_wav(audio_record: models.Record) -> None:
     """Convert an audio file to wav."""
     if audio_record.audio_path.suffix == ".wav":
         logger.debug("audio is in wav format!")
-        return audio_record
     wav_path = audio_record.audio_path.with_name(f"{audio_record.audio_path.stem}.wav")
     if wav_path.exists():
-        audio_record.audio_path = wav_path
         logger.debug("%s exists!", audio_record.audio_path)
-        return audio_record
+        audio_record.audio_path = wav_path
 
     logger.debug("loading %s", audio_record)
     sound = AudioSegment.from_file(audio_record.audio_path)
 
     logger.debug("exporting to % s", wav_path)
     sound.export(wav_path, format="wav")
-    return audio_record
+    audio_record.audio_path = wav_path
 
 
-def get_diarization(audio_record: Record, use_auth_token: str) -> Annotation:
+def get_diarization(audio_record: models.Record, use_auth_token: str) -> Annotation:
     """Get the diarization from the audio file."""
     audio_record.diar_pkl = audio_record.audio_path.with_name(
         f"{audio_record.audio_path.stem}_diar.pkl",
@@ -230,7 +235,7 @@ def get_diarization(audio_record: Record, use_auth_token: str) -> Annotation:
         with audio_record.diar_pkl.open("rb") as handle:
             diarization = pickle.load(handle)  # noqa: S301
     else:
-        audio_record = convert_wav(audio_record)
+        convert_wav(audio_record)
         audio_record.diar_pkl = audio_record.audio_path.with_name(
             f"{audio_record.audio_path.stem}_diar.pkl",
         )
@@ -305,7 +310,7 @@ def get_world_cloud(
     return figs
 
 
-def get_audio_format(audio_record: Record) -> str:
+def get_audio_format(audio_record: models.Record) -> str:
     """Given a path to an audio file, return the file format."""
     with audio_record.audio_path.open("rb") as f:
         audio_data = f.read()

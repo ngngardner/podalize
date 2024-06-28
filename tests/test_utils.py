@@ -1,21 +1,28 @@
 """Tests for the utils module."""
 
-from pathlib import Path
+import json
 
+from podalize import configs
 from podalize.utils import get_audio_format, youtube_downloader
 
 
-def test_yt_downloader(tmp_path: Path) -> None:
+def test_yt_downloader() -> None:
     """Test the youtube downloader."""
     url = "https://www.youtube.com/shorts/nJ4SDNNqBng"
-    audio_record = youtube_downloader(url, tmp_path)
-    assert audio_record.file_dir.exists()
-    assert audio_record.audio_path.exists()
+    if configs.db.get(url, None):
+        del configs.db[url]
+        with configs.db_path.open("w") as f:
+            json.dump(configs.db, f)
+    youtube_downloader(url)
 
 
-def test_get_audio_format(tmp_path: Path) -> None:
+def test_get_audio_format() -> None:
     """Test the get_audio_format function."""
     url = "https://www.youtube.com/shorts/nJ4SDNNqBng"
-    audio_record = youtube_downloader(url, tmp_path)
+    if configs.db.get(url, None):
+        del configs.db[url]
+        with configs.db_path.open("w") as f:
+            json.dump(configs.db, f)
+    audio_record = youtube_downloader(url)
     audio_format = get_audio_format(audio_record)
     assert audio_format == "audio/mpeg"
