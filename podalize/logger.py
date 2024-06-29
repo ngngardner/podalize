@@ -3,6 +3,8 @@
 import logging
 import os
 
+from rich.logging import RichHandler
+
 
 def get_logger(name: str) -> logging.Logger:
     """Get a logger for the app."""
@@ -13,12 +15,10 @@ def get_logger(name: str) -> logging.Logger:
 
     logger.setLevel(level)
 
-    ch = logging.StreamHandler()
+    ch = RichHandler()
     ch.setLevel(level)
 
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"  # noqa: COM812
-    )
+    formatter = logging.Formatter("%(message)s")
     ch.setFormatter(formatter)
 
     logger.addHandler(ch)

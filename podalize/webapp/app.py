@@ -116,7 +116,7 @@ def handle_segments(audio_record: models.Record) -> dict[tuple[float, float], st
 def generate_figs(
     audio_record: models.Record,
     speakers_dict: dict[str, str],
-    spoken_time_secs: dict[str, float],
+    spoken_time_secs: dict[str, float | int],
 ) -> None:
     """Generate figures for spoken time."""
     st.header("Analyze")

@@ -3133,17 +3133,6 @@ files = [
 six = ">=1.5"
 
 [[package]]
-name = "python-magic"
-version = "0.4.27"
-description = "File type identification using libmagic"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
-files = [
-    {file = "python-magic-0.4.27.tar.gz", hash = "sha256:c1ba14b08e4a5f5c31a302b7721239695b2f0f058d125bd5ce1ee36b9d9d3c3b"},
-    {file = "python_magic-0.4.27-py2.py3-none-any.whl", hash = "sha256:c212960ad306f700aa0d01e5d7a325d20548ff97eb9920dcd29513174f0294d3"},
-]
-
-[[package]]
 name = "pytorch-lightning"
 version = "2.2.5"
 description = "PyTorch Lightning is the lightweight PyTorch wrapper for ML researchers. Scale your models. Write less boilerplate."
@@ -3196,17 +3185,6 @@ dev = ["black", "flake8", "isort", "nbqa"]
 docs = ["mkdocs-material"]
 with-hooks = ["faiss-gpu (>=1.6.3)", "record-keeper (>=0.9.32)", "tensorboard"]
 with-hooks-cpu = ["faiss-cpu (>=1.6.3)", "record-keeper (>=0.9.32)", "tensorboard"]
-
-[[package]]
-name = "pytube"
-version = "12.1.0"
-description = "Python 3 library for downloading YouTube Videos."
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "pytube-12.1.0-py3-none-any.whl", hash = "sha256:c2e4b1ffdf9eca4c287f881557a6b4f98dd287ecfa06e2e5d5936d39c5f4d8da"},
-    {file = "pytube-12.1.0.tar.gz", hash = "sha256:6de1f3a4cb125dd6ff912598c7e88a866325a63cc91755cae616f53c40ae5503"},
-]
 
 [[package]]
 name = "pytz"
@@ -4874,4 +4852,4 @@ test = ["pytest (>=8.1,<9.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "cf4bd9b2473168f22727e2d2986e3d5c40177cf611c7cf7cb82e5a49b95dfc00"
+content-hash = "ca88fefd1d7a1c3198a111b5aa7be6683efee1834fa790eeba22ca6b367bede7"

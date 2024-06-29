@@ -11,7 +11,7 @@ temp: Path | str | None = os.environ.get("PODALIZE_PATH", None)
 if temp is None or not Path(temp).exists():
     podalize_path = Path("~/.podalize").expanduser()
     logger.warning(
-        "PODALIZE_PATH variable not found or corrupt. Creating %s",
+        "PODALIZE_PATH variable not found or corrupt. Using %s",
         podalize_path,
     )
     podalize_path.mkdir(exist_ok=True)

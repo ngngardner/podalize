@@ -252,7 +252,7 @@ def get_diarization(audio_record: models.Record, use_auth_token: str) -> Annotat
 def get_spoken_time(
     result: models.Result,
     speakers: list[str],
-) -> tuple[dict[str, str], dict[str, float]]:
+) -> tuple[dict[str, str], dict[str, float | int]]:
     """Get spoken time for each speaker."""
     spoken_time = {}
     spoken_time_secs = {}

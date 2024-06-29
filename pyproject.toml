@@ -11,21 +11,22 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+
 matplotlib = "3.6.1"
+pylatex = "1.4.1"
+
+openai-whisper = "20231117"
 pyannote-audio = "3.2.0"
 pyannote-core = "5.0.0"
-altair = "<5"
 pydub = "0.25.1"
-pylatex = "1.4.1"
-python-magic = "0.4.27"
-pytube = "12.1.0"
 streamlit = { extras = ["testing"], version = "^1.35.0" }
 torchaudio = "^2.3.1"
-openai-whisper = "20231117"
-yt-dlp = "^2024.5.27"
 wordcloud = "^1.9.3"
+yt-dlp = "^2024.5.27"
+
 beartype = "^0.18.5"
 pydantic = "^2.7.4"
+rich = "^13.7.1"
 sqlmodel = "^0.0.19"
 typer = "^0.12.3"
 
@@ -43,10 +44,10 @@ _mypy_lint = "mypy ."
 lint = ["_mypy_lint", "_ruff_lint"]
 format = "ruff check --fix ."
 test = "pytest"
-app = "streamlit run podalize/__main__.py"
+app = "streamlit run podalize/webapp/__main__.py"
 
 [tool.poe.tasks.debug]
-cmd = "streamlit run podalize/__main__.py"
+cmd = "streamlit run podalize/webapp/__main__.py"
 env = { LOG_LEVEL = "DEBUG" }
 
 [tool.pytest.ini_options]
