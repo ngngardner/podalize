@@ -16,39 +16,13 @@ import streamlit as st
 import whisper
 from pyannote.audio import Pipeline
 from pyannote.core.annotation import Annotation
-from pydantic import BaseModel
 from pydub import AudioSegment
 from wordcloud import WordCloud
 
-from podalize import configs, models
+from podalize import configs, db, models
 from podalize.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class Segment(BaseModel):
-    """Speaker segment model."""
-
-    id: int
-    seek: int
-    start: float
-    end: float
-    text: str
-    tokens: list[int]
-    temperature: float
-    avg_logprob: float
-    compression_ratio: float
-    no_speech_prob: float
-    speaker: str | None = None
-
-
-class Result(BaseModel):
-    """Transcription result model."""
-
-    text: str
-    segments: list[Segment]
-    language: str
-    speakers: list[str] | None = None
 
 
 def hash_audio_file(audio_record: models.Record, chunk_size: int = 8192) -> str:
@@ -64,7 +38,7 @@ def hash_audio_file(audio_record: models.Record, chunk_size: int = 8192) -> str:
 
 def youtube_downloader(url: str) -> models.YoutubeRecord:
     """Download a youtube video to a destination folder."""
-    if audio_record := models.get_youtube_record(url):
+    if audio_record := db.get_youtube_record(url):
         return audio_record
     mp3_path = configs.tmp_path / f"audio_{uuid.uuid4()}.mp3"
     command = f"yt-dlp -x --audio-format mp3 -o {mp3_path} {url}"
@@ -86,12 +60,12 @@ def youtube_downloader(url: str) -> models.YoutubeRecord:
         audio_path=out_path,
         file_dir=configs.tmp_path,
     )
-    models.store_youtube_record(audio_record)
+    db.store_youtube_record(audio_record)
     return audio_record
 
 
 def merge_tran_diar(  # noqa: C901
-    result: Result,
+    result: models.Result,
     segements_dict: dict[tuple[float, float], str],
     speakers_dict: dict[str, str],
 ) -> str:
@@ -176,7 +150,7 @@ def get_largest_duration(
     return s, e, maxsofar
 
 
-def get_transcript(model_size: str, audio_record: models.Record) -> Result:
+def get_transcript(model_size: str, audio_record: models.Record) -> models.Result:
     """Get the transcript for an audio file from a model."""
     # check if trainscript available
     audio_record.transcripts[model_size] = audio_record.audio_path.with_name(
@@ -185,7 +159,7 @@ def get_transcript(model_size: str, audio_record: models.Record) -> Result:
     if audio_record.transcripts[model_size].exists():
         with audio_record.transcripts[model_size].open("r") as f:
             result = json.load(f)
-        return Result(**result)
+        return models.Result(**result)
 
     logger.debug("loading model ...")
     model = whisper.load_model(model_size)
@@ -200,7 +174,7 @@ def get_transcript(model_size: str, audio_record: models.Record) -> Result:
     with audio_record.transcripts[model_size].open("w") as f:
         json.dump(result, f)
 
-    return Result(**result)
+    return models.Result(**result)
 
 
 def get_overlap(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -264,7 +238,7 @@ def get_diarization(audio_record: models.Record, use_auth_token: str) -> Annotat
 
 
 def get_spoken_time(
-    result: Result,
+    result: models.Result,
     speakers: list[str],
 ) -> tuple[dict[str, str], dict[str, float]]:
     """Get spoken time for each speaker."""
@@ -280,7 +254,7 @@ def get_spoken_time(
 
 
 def get_world_cloud(
-    result: Result,
+    result: models.Result,
     speakers_dict: dict[str, str],
     figs_path: str = "./data/logs",
 ) -> list[str]:

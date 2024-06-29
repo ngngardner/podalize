@@ -1,6 +1,5 @@
 """Podalize configuration module."""
 
-import json
 import os
 from pathlib import Path
 
@@ -22,15 +21,6 @@ log_path = podalize_path / "logs"
 tmp_path = podalize_path / "tmp"
 log_path.mkdir(exist_ok=True)
 tmp_path.mkdir(exist_ok=True)
-
-# TODO: implement sqlite database for storing fingerprint relations and
-# eventually generated data
-db_path = podalize_path / "db.json"
-if not db_path.exists():
-    with db_path.open("w") as f:
-        json.dump({}, f)
-with db_path.open() as f:
-    db: dict[str, str] = json.load(f)
 
 # printing verbose
 verbose = False

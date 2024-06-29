@@ -1,11 +1,33 @@
 """Data models for Podalize app."""
 
-import json
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 
-from podalize import configs
+
+class Segment(BaseModel):
+    """Speaker segment model."""
+
+    id: int
+    seek: int
+    start: float
+    end: float
+    text: str
+    tokens: list[int]
+    temperature: float
+    avg_logprob: float
+    compression_ratio: float
+    no_speech_prob: float
+    speaker: str | None = None
+
+
+class Result(BaseModel):
+    """Transcription result model."""
+
+    text: str
+    segments: list[Segment]
+    language: str
+    speakers: list[str] | None = None
 
 
 class Record(BaseModel):
@@ -52,22 +74,3 @@ class YoutubeRecord(Record):
         ...,
         description="YouTube video ID.",
     )
-
-
-def get_youtube_record(url: str) -> YoutubeRecord | None:
-    """Read the database for a YouTube fingerprint record."""
-    fingerprint = configs.db.get(url, None)
-    if fingerprint is None:
-        return None
-    return YoutubeRecord(
-        audio_path=configs.podalize_path / fingerprint / "audio.wav",
-        file_dir=configs.podalize_path / fingerprint,
-        video_url=url,
-    )
-
-
-def store_youtube_record(youtube_record: YoutubeRecord) -> None:
-    """Store a YouTube record in the database."""
-    configs.db[youtube_record.video_url] = youtube_record.file_dir.name
-    with configs.db_path.open("w") as f:
-        json.dump(configs.db, f)

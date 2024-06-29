@@ -12,7 +12,7 @@ import torchaudio
 from pyannote.core.annotation import Annotation
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from podalize import configs, models, utils
+from podalize import configs, db, models, utils
 from podalize.document_generator import DocumentGenerator
 from podalize.logger import get_logger
 
@@ -65,7 +65,7 @@ def get_youtube_audio(youtube_url: str) -> models.YoutubeRecord:
         utils.convert_wav(audio_record)
         tmp_path.unlink()
     audio_fingerprint_dir(audio_record)
-    models.store_youtube_record(audio_record)
+    db.store_youtube_record(audio_record)
     return audio_record
 
 
