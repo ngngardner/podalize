@@ -36,8 +36,26 @@ def hash_audio_file(audio_record: models.Record, chunk_size: int = 8192) -> str:
     raise FileNotFoundError
 
 
+def convert_wav(audio_record: models.Record) -> None:
+    """Convert an audio file to wav."""
+    if audio_record.audio_path.suffix == ".wav":
+        logger.debug("audio is in wav format!")
+    wav_path = audio_record.audio_path.with_name(f"{audio_record.audio_path.stem}.wav")
+    if wav_path.exists():
+        logger.debug("%s exists!", audio_record.audio_path)
+        audio_record.audio_path = wav_path
+
+    logger.debug("loading %s", audio_record)
+    sound = AudioSegment.from_file(audio_record.audio_path)
+
+    logger.debug("exporting to % s", wav_path)
+    sound.export(wav_path, format="wav")
+    audio_record.audio_path = wav_path
+
+
 def audio_fingerprint_dir(audio_record: models.Record) -> None:
     """Create the fingerprint dir for a given audio file."""
+    convert_wav(audio_record)
     fingerprint = hash_audio_file(audio_record)
     dest = configs.podalize_path / fingerprint
     dest.mkdir(parents=True, exist_ok=True)
@@ -192,23 +210,6 @@ def get_transcript(model_size: str, audio_record: models.Record) -> models.Resul
 def get_overlap(a: tuple[float, float], b: tuple[float, float]) -> float:
     """Get the overlap between two segments."""
     return max(0, min(a[1], b[1]) - max(a[0], b[0]))
-
-
-def convert_wav(audio_record: models.Record) -> None:
-    """Convert an audio file to wav."""
-    if audio_record.audio_path.suffix == ".wav":
-        logger.debug("audio is in wav format!")
-    wav_path = audio_record.audio_path.with_name(f"{audio_record.audio_path.stem}.wav")
-    if wav_path.exists():
-        logger.debug("%s exists!", audio_record.audio_path)
-        audio_record.audio_path = wav_path
-
-    logger.debug("loading %s", audio_record)
-    sound = AudioSegment.from_file(audio_record.audio_path)
-
-    logger.debug("exporting to % s", wav_path)
-    sound.export(wav_path, format="wav")
-    audio_record.audio_path = wav_path
 
 
 def get_diarization(audio_record: models.Record, use_auth_token: str) -> Annotation:
