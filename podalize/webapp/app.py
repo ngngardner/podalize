@@ -1,4 +1,4 @@
-"""Main Podalize application module."""
+"""Main Podalize web application module."""
 
 import datetime
 import json

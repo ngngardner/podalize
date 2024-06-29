@@ -4,12 +4,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from podalize.app import (
-    handle_document,
-    handle_segments,
-    handle_speakers,
-    process_audio,
-)
 from podalize.configs import use_auth_token
 from podalize.models import Record
 from podalize.utils import (
@@ -18,6 +12,12 @@ from podalize.utils import (
     get_transcript,
     get_world_cloud,
     merge_tran_diar,
+)
+from podalize.webapp.app import (
+    handle_document,
+    handle_segments,
+    handle_speakers,
+    process_audio,
 )
 
 if TYPE_CHECKING:

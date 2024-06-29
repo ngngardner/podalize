@@ -27,6 +27,7 @@ wordcloud = "^1.9.3"
 beartype = "^0.18.5"
 pydantic = "^2.7.4"
 sqlmodel = "^0.0.19"
+typer = "^0.12.3"
 
 [tool.poetry.group.dev.dependencies]
 poethepoet = "^0.26.1"
