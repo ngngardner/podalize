@@ -19,17 +19,6 @@ from podalize.logger import get_logger
 logger = get_logger(__name__)
 
 
-def audio_fingerprint_dir(audio_record: models.Record) -> None:
-    """Create the fingerprint dir for a given audio file."""
-    fingerprint = utils.hash_audio_file(audio_record)
-    dest = configs.podalize_path / fingerprint
-    dest.mkdir(parents=True, exist_ok=True)
-    shutil.move(audio_record.audio_path, dest / audio_record.audio_path.name)
-
-    audio_record.file_dir = dest
-    audio_record.audio_path = dest / audio_record.audio_path.name
-
-
 def get_file_audio(uploaded_file: UploadedFile) -> models.Record:
     """Download an uploaded file to a destination folder."""
     audio_record = models.Record(
@@ -39,7 +28,7 @@ def get_file_audio(uploaded_file: UploadedFile) -> models.Record:
     if not audio_record.audio_path.exists():
         with audio_record.audio_path.open("wb") as f:
             f.write(uploaded_file.getvalue())
-    audio_fingerprint_dir(audio_record)
+    utils.audio_fingerprint_dir(audio_record)
     return audio_record
 
 
@@ -64,7 +53,7 @@ def get_youtube_audio(youtube_url: str) -> models.YoutubeRecord:
         )
         utils.convert_wav(audio_record)
         tmp_path.unlink()
-    audio_fingerprint_dir(audio_record)
+    utils.audio_fingerprint_dir(audio_record)
     db.store_youtube_record(audio_record)
     return audio_record
 

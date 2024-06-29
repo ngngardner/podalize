@@ -36,6 +36,17 @@ def hash_audio_file(audio_record: models.Record, chunk_size: int = 8192) -> str:
     raise FileNotFoundError
 
 
+def audio_fingerprint_dir(audio_record: models.Record) -> None:
+    """Create the fingerprint dir for a given audio file."""
+    fingerprint = hash_audio_file(audio_record)
+    dest = configs.podalize_path / fingerprint
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.move(audio_record.audio_path, dest / audio_record.audio_path.name)
+
+    audio_record.file_dir = dest
+    audio_record.audio_path = dest / audio_record.audio_path.name
+
+
 def youtube_downloader(url: str) -> models.YoutubeRecord:
     """Download a youtube video to a destination folder."""
     if audio_record := db.get_youtube_record(url):
@@ -60,6 +71,7 @@ def youtube_downloader(url: str) -> models.YoutubeRecord:
         audio_path=out_path,
         file_dir=configs.tmp_path,
     )
+    audio_fingerprint_dir(audio_record)
     db.store_youtube_record(audio_record)
     return audio_record
 

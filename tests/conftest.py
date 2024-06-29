@@ -8,8 +8,8 @@ import pytest
 from _pytest.fixtures import SubRequest
 
 import podalize
-from podalize.app import audio_fingerprint_dir
 from podalize.models import Record
+from podalize.utils import audio_fingerprint_dir
 
 
 @pytest.fixture(autouse=True)
